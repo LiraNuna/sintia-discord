@@ -1,8 +1,19 @@
-import os
+from configparser import ConfigParser
+
 import discord
 
 
 class Sintia(discord.Client):
+    config: ConfigParser
+
+    def __init__(self, config: ConfigParser) -> None:
+        super().__init__()
+
+        self.config = config
+
+    def run(self):
+        super().run(self.config['discord']['token'])
+
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
@@ -12,9 +23,13 @@ class Sintia(discord.Client):
             return
 
         # Hello world!
-        if message.content.startswith('!hello'):
+        if message.content == '!hello':
             await message.channel.send(f'Hello {message.author.mention}')
 
 
-sintia = Sintia()
-sintia.run(os.environ['DISCORD_TOKEN'])
+if __name__ == '__main__':
+    config = ConfigParser()
+    config.read('config.ini')
+
+    sintia = Sintia(config)
+    sintia.run()
