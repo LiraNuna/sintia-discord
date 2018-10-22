@@ -25,11 +25,3 @@ class Sintia(discord.Client):
         # Hello world!
         if message.content == '!hello':
             await message.channel.send(f'Hello {message.author.mention}')
-
-
-if __name__ == '__main__':
-    config = ConfigParser()
-    config.read('config.ini')
-
-    sintia = Sintia(config)
-    sintia.run()
