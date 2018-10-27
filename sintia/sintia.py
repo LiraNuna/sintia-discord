@@ -62,6 +62,10 @@ class Sintia(discord.Client):
 
         return Quote(**quote)
 
+    async def get_random_quote(self) -> Quote:
+        quote = await self.qdb_query("SELECT * FROM qdb_quotes ORDER BY RAND() LIMIT 1")
+        return Quote(**quote)
+
     async def get_latest_quote(self) -> Quote:
         quote = await self.qdb_query("SELECT * FROM qdb_quotes ORDER BY id DESC LIMIT 1")
         return Quote(**quote)
@@ -73,6 +77,18 @@ class Sintia(discord.Client):
         # Avoid replying to self
         if message.author == self.user:
             return
+
+        # Get a random quote
+        if message.content == '!q':
+            quote, latest_quote = await asyncio.gather(
+                self.get_random_quote(),
+                self.get_latest_quote(),
+            )
+
+            return await message.channel.send(
+                f'Quote **{quote.id}** of {latest_quote.id} (rated {quote.score}):\n'
+                f'```{quote.multiline_quote()}```',
+            )
 
         # Get quote with id or search
         if message.content.startswith('!q '):
