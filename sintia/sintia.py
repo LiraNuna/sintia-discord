@@ -1,4 +1,5 @@
 import asyncio
+import re
 from configparser import ConfigParser
 from datetime import datetime
 from typing import NamedTuple, Dict, Optional
@@ -16,6 +17,14 @@ class Quote(NamedTuple):
     score: int
     adddate: datetime
     addchannel: str
+
+    def multiline_quote(self) -> str:
+        nick_regex = '[a-zA-Z0-9`_\-|@+^[\]]*'
+
+        quote = self.quote
+        quote = re.sub(rf'(<{nick_regex}>)', r'\n\1', quote)
+        quote = re.sub(rf'(\* {nick_regex} )', r'\n\1', quote)
+        return quote
 
 
 class Sintia(discord.Client):
@@ -79,14 +88,14 @@ class Sintia(discord.Client):
 
                 return await message.channel.send(
                     f'Quote **{quote.id}** of {latest_quote.id} (rated {quote.score}):\n'
-                    f'`{quote.quote}`',
+                    f'```{quote.multiline_quote()}```',
                 )
 
         if message.content == '!lq':
             quote = await self.get_latest_quote()
             return await message.channel.send(
                 f'Latest quote (**{quote.id}**, rated {quote.score}):\n'
-                f'`{quote.quote}`',
+                f'```{quote.multiline_quote()}```',
             )
 
         # Hello world!
