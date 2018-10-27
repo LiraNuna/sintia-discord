@@ -46,6 +46,13 @@ class Sintia(discord.Client):
                 await cursor.execute(query, args)
                 return await cursor.fetchone()
 
+    async def get_quote(self, id: int) -> Optional[Quote]:
+        quote = await self.qdb_query("SELECT * FROM qdb_quotes WHERE id = %s", id)
+        if not quote:
+            return None
+
+        return Quote(**quote)
+
     async def get_latest_quote(self) -> Quote:
         quote = await self.qdb_query("SELECT * FROM qdb_quotes ORDER BY id DESC LIMIT 1")
         return Quote(**quote)
@@ -57,6 +64,23 @@ class Sintia(discord.Client):
         # Avoid replying to self
         if message.author == self.user:
             return
+
+        # Get quote with id or search
+        if message.content.startswith('!q '):
+            trigger, _, search_term = message.content.partition(' ')
+            if search_term.isdigit():
+                quote, latest_quote = await asyncio.gather(
+                    self.get_quote(int(search_term)),
+                    self.get_latest_quote(),
+                )
+
+                if not quote:
+                    await message.channel.send(f'Quote with id {search_term} does not exist')
+
+                return await message.channel.send(
+                    f'Quote **{quote.id}** of {latest_quote.id} (rated {quote.score}):\n'
+                    f'`{quote.quote}`',
+                )
 
         if message.content == '!lq':
             quote = await self.get_latest_quote()
