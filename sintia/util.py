@@ -15,3 +15,7 @@ def memoize(user_function):
         return result
 
     return lru_cache(maxsize=None)(interceptor)
+
+
+def ordinal(position: int) -> str:
+    return "%d%s" % (position, "tsnrhtdd"[(position // 10 % 10 != 1) * (position % 10 < 4) * position % 10::4])
