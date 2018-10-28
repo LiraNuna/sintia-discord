@@ -41,12 +41,13 @@ class Sintia(discord.Client):
 
     @memoize
     async def qdb_connection_pool(self):
+        qdb_config = self.config['quotes']
         return await aiomysql.create_pool(
-            host=self.config['quotes']['hostname'],
-            port=self.config['quotes'].getint('post', 3306),
-            user=self.config['quotes']['username'],
-            password=self.config['quotes']['password'],
-            db=self.config['quotes']['database'],
+            host=qdb_config['hostname'],
+            port=qdb_config.getint('post', 3306),
+            user=qdb_config['username'],
+            password=qdb_config['password'],
+            db=qdb_config['database'],
         )
 
     async def qdb_query_single(self, query: str, *args) -> Optional[Dict]:
