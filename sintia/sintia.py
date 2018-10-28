@@ -70,6 +70,10 @@ class Sintia(discord.Client):
         quote = await self.qdb_query("SELECT * FROM qdb_quotes ORDER BY id DESC LIMIT 1")
         return Quote(**quote)
 
+    async def get_best_quote(self) -> Quote:
+        quote = await self.qdb_query("SELECT * FROM qdb_quotes ORDER BY score DESC LIMIT 1")
+        return Quote(**quote)
+
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
@@ -111,6 +115,13 @@ class Sintia(discord.Client):
             quote = await self.get_latest_quote()
             return await message.channel.send(
                 f'Latest quote (**{quote.id}**, rated {quote.score}):\n'
+                f'```{quote.multiline_quote()}```',
+            )
+
+        if message.content == '!bq':
+            quote = await self.get_best_quote()
+            return await message.channel.send(
+                f'The most popular quote is Quote **{quote.id}** (rated {quote.score}):\n'
                 f'```{quote.multiline_quote()}```',
             )
 
