@@ -1,4 +1,5 @@
 import asyncio
+import random
 import re
 from configparser import ConfigParser
 from datetime import datetime
@@ -92,6 +93,14 @@ class Sintia(discord.Client):
 
         return [Quote(**quote) for quote in quotes]
 
+    async def find_quotes_by_search_term(self, search_term: str) -> List[Quote]:
+        quotes = await self.qdb_query_all(
+            "SELECT * FROM qdb_quotes WHERE quote LIKE %s ORDER BY id ASC",
+            f'%{search_term}%',
+        )
+
+        return [Quote(**quote) for quote in quotes]
+
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
@@ -162,6 +171,21 @@ class Sintia(discord.Client):
                 for quote in quotes:
                     await message.channel.send(f'Quote **{quote.id}**:\n```{quote.multiline_quote()}```')
 
+        if message.content.startswith('!fq '):
+            trigger, _, search_term = message.content.partition(' ')
+
+            quotes = await self.find_quotes_by_search_term(search_term)
+            if not quotes:
+                return await message.channel.send('No quotes match that search term.')
+
+            total_results = len(quotes)
+            random_quote_index = random.choice(range(total_results))
+
+            quote = quotes[random_quote_index]
+            return await message.channel.send(
+                f'Result {random_quote_index + 1} of {total_results}: Quote **{quote.id}** (rated {quote.score}):\n'
+                f'```{quote.multiline_quote()}```',
+            )
 
         # Hello world!
         if message.content == '!hello':
