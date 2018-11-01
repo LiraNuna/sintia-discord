@@ -84,6 +84,15 @@ class Sintia(discord.Client):
         quote = await self.qdb_query_single("SELECT * FROM qdb_quotes ORDER BY score DESC LIMIT 1")
         return Quote(**quote)
 
+    async def get_quote_rank(self, quote_id: int) -> int:
+        result = await self.qdb_query_single("""
+            SELECT COUNT(DISTINCT(score)) + 1 AS rank
+            FROM qdb_quotes
+            WHERE score > (SELECT score FROM qdb_quotes WHERE id = %s)
+        """, quote_id)
+
+        return int(result['rank'])
+
     async def get_quotes_for_rank(self, rank: int) -> List[Quote]:
         quotes = await self.qdb_query_all("""
             SELECT * FROM qdb_quotes WHERE score = (
@@ -223,6 +232,30 @@ class Sintia(discord.Client):
                 self.modify_quote_score(quote.id, -1),
                 message.channel.send(f'Popularity of quote {quote.id} has decreased.'),
             )
+
+        if message.content.startswith('!iq '):
+            trigger, _, search_term = message.content.partition(' ')
+            if not search_term.isdigit():
+                return
+
+            quote_id = int(search_term)
+            quote, rank = await asyncio.gather(
+                self.get_quote(quote_id),
+                self.get_quote_rank(quote_id),
+            )
+
+            if not quote:
+                return await message.channel.send(f'Quote with id {search_term} does not exist')
+
+            quote_info = f'Quote **{quote.id}** was added'
+            if quote.creator:
+                quote_info += f' by {quote.creator}'
+            if quote.addchannel:
+                quote_info += f' in channel {quote.addchannel}'
+            if quote.adddate:
+                quote_info += f' on {quote.adddate}'
+
+            return await message.channel.send(f'{quote_info}. It is ranked {ordinal(rank)}.')
 
         # Hello world!
         if message.content == '!hello':
