@@ -101,6 +101,13 @@ class Sintia(discord.Client):
 
         return [Quote(**quote) for quote in quotes]
 
+    async def modify_quote_score(self, quote_id: int, amount: int):
+        qdb_pool = await self.qdb_connection_pool()
+        async with qdb_pool.acquire() as connection:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("UPDATE qdb_quotes SET score = score + %s WHERE id = %s", (amount, quote_id))
+                await connection.commit()
+
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
@@ -185,6 +192,36 @@ class Sintia(discord.Client):
             return await message.channel.send(
                 f'Result {random_quote_index + 1} of {total_results}: Quote **{quote.id}** (rated {quote.score}):\n'
                 f'```{quote.multiline_quote()}```',
+            )
+
+        if message.content.startswith('!+q '):
+            trigger, _, search_term = message.content.partition(' ')
+            if not search_term.isdigit():
+                return
+
+            quote_id = int(search_term)
+            quote = await self.get_quote(quote_id)
+            if not quote:
+                return await message.channel.send(f'Quote with id {search_term} does not exist')
+
+            return await asyncio.gather(
+                self.modify_quote_score(quote.id, +1),
+                message.channel.send(f'Popularity of quote {quote.id} has increased.'),
+            )
+
+        if message.content.startswith('!-q '):
+            trigger, _, search_term = message.content.partition(' ')
+            if not search_term.isdigit():
+                return
+
+            quote_id = int(search_term)
+            quote = await self.get_quote(quote_id)
+            if not quote:
+                return await message.channel.send(f'Quote with id {search_term} does not exist')
+
+            return await asyncio.gather(
+                self.modify_quote_score(quote.id, -1),
+                message.channel.send(f'Popularity of quote {quote.id} has decreased.'),
             )
 
         # Hello world!
