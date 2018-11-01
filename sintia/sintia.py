@@ -2,7 +2,7 @@ import asyncio
 import random
 import re
 from configparser import ConfigParser
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import NamedTuple, Dict, Optional, List
 
 import aiomysql
@@ -41,6 +41,10 @@ class Sintia(discord.Client):
         super().run(self.config['discord']['token'])
 
     @memoize
+    def get_rate_limits(self, action: str) -> Dict[int, datetime]:
+        return {}
+
+    @memoize
     async def qdb_connection_pool(self):
         qdb_config = self.config['quotes']
         return await aiomysql.create_pool(
@@ -50,6 +54,18 @@ class Sintia(discord.Client):
             password=qdb_config['password'],
             db=qdb_config['database'],
         )
+
+    def record_action(self, action: str, user_id: int) -> None:
+        rate_limits = self.get_rate_limits(action)
+        rate_limits[user_id] = datetime.now()
+
+    def is_rate_limited(self, action: str, user_id: int) -> bool:
+        rate_limits = self.get_rate_limits(action)
+        if not user_id in rate_limits:
+            return False
+
+        duration = timedelta(seconds=self.config['ratelimits'].getint(action))
+        return rate_limits[user_id] + duration > datetime.now()
 
     async def qdb_query_single(self, query: str, *args) -> Optional[Dict]:
         qdb_pool = await self.qdb_connection_pool()
@@ -204,6 +220,9 @@ class Sintia(discord.Client):
             )
 
         if message.content.startswith('!+q '):
+            if self.is_rate_limited('quote.vote', message.author.id):
+                return
+
             trigger, _, search_term = message.content.partition(' ')
             if not search_term.isdigit():
                 return
@@ -213,12 +232,16 @@ class Sintia(discord.Client):
             if not quote:
                 return await message.channel.send(f'Quote with id {search_term} does not exist')
 
+            self.record_action('quote.vote', message.author.id)
             return await asyncio.gather(
                 self.modify_quote_score(quote.id, +1),
                 message.channel.send(f'Popularity of quote {quote.id} has increased.'),
             )
 
         if message.content.startswith('!-q '):
+            if self.is_rate_limited('quote.vote', message.author.id):
+                return
+
             trigger, _, search_term = message.content.partition(' ')
             if not search_term.isdigit():
                 return
@@ -228,6 +251,7 @@ class Sintia(discord.Client):
             if not quote:
                 return await message.channel.send(f'Quote with id {search_term} does not exist')
 
+            self.record_action('quote.vote', message.author.id)
             return await asyncio.gather(
                 self.modify_quote_score(quote.id, -1),
                 message.channel.send(f'Popularity of quote {quote.id} has decreased.'),
