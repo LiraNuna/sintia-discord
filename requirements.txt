@@ -1,2 +1,3 @@
+aiohttp==3.4.4
 aiomysql==0.0.19
 git+https://github.com/Rapptz/discord.py@rewrite#egg=discord.py
