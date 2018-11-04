@@ -1,10 +1,13 @@
 import asyncio
+import json
 import random
 import re
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 from typing import NamedTuple, Dict, Optional, List
+from urllib.parse import urlencode
 
+import aiohttp
 import aiomysql
 import discord
 
@@ -80,6 +83,11 @@ class Sintia(discord.Client):
             async with connection.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute(query, args)
                 return await cursor.fetchall()
+
+    async def http_get_request(self, url: str) -> str:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                return await response.text()
 
     async def get_quote(self, id: int) -> Optional[Quote]:
         quote = await self.qdb_query_single("SELECT * FROM qdb_quotes WHERE id = %s", id)
@@ -280,6 +288,28 @@ class Sintia(discord.Client):
                 quote_info += f' on {quote.adddate}'
 
             return await message.channel.send(f'{quote_info}. It is ranked {ordinal(rank)}.')
+
+        # Google search
+        if message.content.startswith('!g '):
+            trigger, _, search_term = message.content.partition(' ')
+            if not search_term:
+                return
+
+            results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
+                'q': search_term,
+                'key': self.config['search.google']['api_key'],
+                'cx': self.config['search.google']['search_engine_id'],
+                'num': '1',
+            }))
+
+            json_results = json.loads(results)
+            search_result, *rest = json_results['items']
+            return await message.channel.send(
+                f'**{search_result["title"]}**\n'
+                f'<{search_result["link"]}>'
+                f'\n'
+                f'{search_result["snippet"]}\n',
+            )
 
         # Hello world!
         if message.content == '!hello':
