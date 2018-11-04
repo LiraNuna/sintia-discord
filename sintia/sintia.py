@@ -311,6 +311,24 @@ class Sintia(discord.Client):
                 f'{search_result["snippet"]}\n',
             )
 
+        # Google image search
+        if message.content.startswith('!gi '):
+            trigger, _, search_term = message.content.partition(' ')
+            if not search_term:
+                return
+
+            results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
+                'q': search_term,
+                'searchType': 'image',
+                'key': self.config['search.google']['api_key'],
+                'cx': self.config['search.google']['search_engine_id'],
+                'num': '1',
+            }))
+
+            json_results = json.loads(results)
+            search_result, *rest = json_results['items']
+            return await message.channel.send(search_result["link"])
+
         # Hello world!
         if message.content == '!hello':
             await message.channel.send(f'Hello {message.author.mention}')
