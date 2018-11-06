@@ -150,7 +150,7 @@ class Sintia(discord.Client):
             return
 
         # Get a random quote
-        if message.content == '!q':
+        if message.clean_content == '!q':
             quote, latest_quote = await asyncio.gather(
                 self.get_random_quote(),
                 self.get_latest_quote(),
@@ -162,8 +162,8 @@ class Sintia(discord.Client):
             )
 
         # Get quote with id or search
-        if message.content.startswith('!q '):
-            trigger, _, search_term = message.content.partition(' ')
+        if message.clean_content.startswith('!q '):
+            trigger, _, search_term = message.clean_content.partition(' ')
             if search_term.isdigit():
                 quote, latest_quote = await asyncio.gather(
                     self.get_quote(int(search_term)),
@@ -178,22 +178,22 @@ class Sintia(discord.Client):
                     f'```{quote.multiline_quote()}```',
                 )
 
-        if message.content == '!lq':
+        if message.clean_content == '!lq':
             quote = await self.get_latest_quote()
             return await message.channel.send(
                 f'Latest quote (**{quote.id}**, rated {quote.score}):\n'
                 f'```{quote.multiline_quote()}```',
             )
 
-        if message.content == '!bq':
+        if message.clean_content == '!bq':
             quote = await self.get_best_quote()
             return await message.channel.send(
                 f'The most popular quote is Quote **{quote.id}** (rated {quote.score}):\n'
                 f'```{quote.multiline_quote()}```',
             )
 
-        if message.content.startswith('!bq '):
-            trigger, _, search_term = message.content.partition(' ')
+        if message.clean_content.startswith('!bq '):
+            trigger, _, search_term = message.clean_content.partition(' ')
             if search_term.isdigit():
                 rank = int(search_term)
                 if rank <= 0:
@@ -211,8 +211,8 @@ class Sintia(discord.Client):
                 for quote in quotes:
                     await message.channel.send(f'Quote **{quote.id}**:\n```{quote.multiline_quote()}```')
 
-        if message.content.startswith('!fq '):
-            trigger, _, search_term = message.content.partition(' ')
+        if message.clean_content.startswith('!fq '):
+            trigger, _, search_term = message.clean_content.partition(' ')
 
             quotes = await self.find_quotes_by_search_term(search_term)
             if not quotes:
@@ -227,11 +227,11 @@ class Sintia(discord.Client):
                 f'```{quote.multiline_quote()}```',
             )
 
-        if message.content.startswith('!+q '):
+        if message.clean_content.startswith('!+q '):
             if self.is_rate_limited('quote.vote', message.author.id):
                 return
 
-            trigger, _, search_term = message.content.partition(' ')
+            trigger, _, search_term = message.clean_content.partition(' ')
             if not search_term.isdigit():
                 return
 
@@ -246,11 +246,11 @@ class Sintia(discord.Client):
                 message.channel.send(f'Popularity of quote {quote.id} has increased.'),
             )
 
-        if message.content.startswith('!-q '):
+        if message.clean_content.startswith('!-q '):
             if self.is_rate_limited('quote.vote', message.author.id):
                 return
 
-            trigger, _, search_term = message.content.partition(' ')
+            trigger, _, search_term = message.clean_content.partition(' ')
             if not search_term.isdigit():
                 return
 
@@ -265,8 +265,8 @@ class Sintia(discord.Client):
                 message.channel.send(f'Popularity of quote {quote.id} has decreased.'),
             )
 
-        if message.content.startswith('!iq '):
-            trigger, _, search_term = message.content.partition(' ')
+        if message.clean_content.startswith('!iq '):
+            trigger, _, search_term = message.clean_content.partition(' ')
             if not search_term.isdigit():
                 return
 
@@ -290,8 +290,8 @@ class Sintia(discord.Client):
             return await message.channel.send(f'{quote_info}. It is ranked {ordinal(rank)}.')
 
         # Google search
-        if message.content.startswith('!g '):
-            trigger, _, search_term = message.content.partition(' ')
+        if message.clean_content.startswith('!g '):
+            trigger, _, search_term = message.clean_content.partition(' ')
             if not search_term:
                 return
 
@@ -312,8 +312,8 @@ class Sintia(discord.Client):
             )
 
         # Google image search
-        if message.content.startswith('!gi '):
-            trigger, _, search_term = message.content.partition(' ')
+        if message.clean_content.startswith('!gi '):
+            trigger, _, search_term = message.clean_content.partition(' ')
             if not search_term:
                 return
 
@@ -330,5 +330,5 @@ class Sintia(discord.Client):
             return await message.channel.send(search_result["link"])
 
         # Hello world!
-        if message.content == '!hello':
+        if message.clean_content == '!hello':
             await message.channel.send(f'Hello {message.author.mention}')
