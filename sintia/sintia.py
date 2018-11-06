@@ -303,7 +303,10 @@ class Sintia(discord.Client):
             }))
 
             json_results = json.loads(results)
-            search_result, *rest = json_results['items']
+            search_result, *rest = json_results.get('items', [None])
+            if not search_result:
+                return await message.channel.send(f'No results found for `{search_term}`')
+
             return await message.channel.send(
                 f'**{search_result["title"]}**\n'
                 f'<{search_result["link"]}>'
@@ -326,7 +329,10 @@ class Sintia(discord.Client):
             }))
 
             json_results = json.loads(results)
-            search_result, *rest = json_results['items']
+            search_result, *rest = json_results.get('items', [None])
+            if not search_result:
+                return await message.channel.send(f'No results found for `{search_term}`')
+
             return await message.channel.send(search_result["link"])
 
         # Hello world!
