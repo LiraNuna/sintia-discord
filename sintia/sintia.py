@@ -2,7 +2,6 @@ import asyncio
 import json
 import random
 import re
-from configparser import ConfigParser
 from datetime import datetime, timedelta
 from typing import NamedTuple, Dict, Optional, List, Callable, Any
 from urllib.parse import urlencode
@@ -11,6 +10,7 @@ import aiohttp
 import aiomysql
 import discord
 
+from sintia.config import get_config_section
 from sintia.util import memoize
 from sintia.util import ordinal
 
@@ -58,16 +58,12 @@ class CommandProcessor:
 
 
 class Sintia(discord.Client):
-    config: ConfigParser
     command_handler: CommandProcessor = CommandProcessor(prefix='!')
 
-    def __init__(self, config: ConfigParser) -> None:
-        super().__init__()
-
-        self.config = config
-
     def run(self):
-        super().run(self.config['discord']['token'])
+        discord_config = get_config_section('discord')
+
+        super().run(discord_config['token'])
 
     @memoize
     def get_rate_limits(self, action: str) -> Dict[int, datetime]:
@@ -75,7 +71,7 @@ class Sintia(discord.Client):
 
     @memoize
     async def qdb_connection_pool(self):
-        qdb_config = self.config['quotes']
+        qdb_config = get_config_section('quotes')
         return await aiomysql.create_pool(
             host=qdb_config['hostname'],
             port=qdb_config.getint('post', 3306),
@@ -93,7 +89,8 @@ class Sintia(discord.Client):
         if not user_id in rate_limits:
             return False
 
-        duration = timedelta(seconds=self.config['ratelimits'].getint(action))
+        rate_limit_config = get_config_section('ratelimits')
+        duration = timedelta(seconds=rate_limit_config.getint(action))
         return rate_limits[user_id] + duration > datetime.now()
 
     async def qdb_query_single(self, query: str, *args) -> Optional[Dict]:
@@ -319,10 +316,11 @@ class Sintia(discord.Client):
         if not argument:
             return
 
+        google_config = get_config_section('search.google')
         results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
             'q': argument,
-            'key': self.config['search.google']['api_key'],
-            'cx': self.config['search.google']['search_engine_id'],
+            'key': google_config['api_key'],
+            'cx': google_config['search_engine_id'],
             'num': '1',
         }))
 
@@ -343,11 +341,12 @@ class Sintia(discord.Client):
         if not argument:
             return
 
+        google_config = get_config_section('search.google')
         results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
             'q': argument,
             'searchType': 'image',
-            'key': self.config['search.google']['api_key'],
-            'cx': self.config['search.google']['search_engine_id'],
+            'key': google_config['api_key'],
+            'cx': google_config['search_engine_id'],
             'num': '1',
         }))
 
