@@ -1,35 +1,17 @@
 import asyncio
 import json
 import random
-import re
 from datetime import datetime, timedelta
-from typing import NamedTuple, Dict, Optional, List, Callable, Any
+from typing import Dict, Callable, Any
 from urllib.parse import urlencode
 
 import aiohttp
-import aiomysql
 import discord
 
 from sintia.config import get_config_section
+from sintia.modules import quotes
 from sintia.util import memoize
 from sintia.util import ordinal
-
-
-class Quote(NamedTuple):
-    id: int
-    creator: str
-    quote: str
-    score: int
-    adddate: datetime
-    addchannel: str
-
-    def multiline_quote(self) -> str:
-        nick_regex = '[a-zA-Z0-9`_\-|@+^[\]]*'
-
-        quote = self.quote
-        quote = re.sub(rf'(<{nick_regex}>)', r'\n\1', quote)
-        quote = re.sub(rf'(\* {nick_regex} )', r'\n\1', quote)
-        return quote
 
 
 class CommandProcessor:
@@ -69,17 +51,6 @@ class Sintia(discord.Client):
     def get_rate_limits(self, action: str) -> Dict[int, datetime]:
         return {}
 
-    @memoize
-    async def qdb_connection_pool(self):
-        qdb_config = get_config_section('quotes')
-        return await aiomysql.create_pool(
-            host=qdb_config['hostname'],
-            port=qdb_config.getint('post', 3306),
-            user=qdb_config['username'],
-            password=qdb_config['password'],
-            db=qdb_config['database'],
-        )
-
     def record_action(self, action: str, user_id: int) -> None:
         rate_limits = self.get_rate_limits(action)
         rate_limits[user_id] = datetime.now()
@@ -93,84 +64,18 @@ class Sintia(discord.Client):
         duration = timedelta(seconds=rate_limit_config.getint(action))
         return rate_limits[user_id] + duration > datetime.now()
 
-    async def qdb_query_single(self, query: str, *args) -> Optional[Dict]:
-        qdb_pool = await self.qdb_connection_pool()
-        async with qdb_pool.acquire() as connection:
-            async with connection.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(query, args)
-                return await cursor.fetchone()
-
-    async def qdb_query_all(self, query: str, *args) -> Optional[List[Dict]]:
-        qdb_pool = await self.qdb_connection_pool()
-        async with qdb_pool.acquire() as connection:
-            async with connection.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(query, args)
-                return await cursor.fetchall()
-
     async def http_get_request(self, url: str) -> str:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 return await response.text()
-
-    async def get_quote(self, id: int) -> Optional[Quote]:
-        quote = await self.qdb_query_single("SELECT * FROM qdb_quotes WHERE id = %s", id)
-        if not quote:
-            return None
-
-        return Quote(**quote)
-
-    async def get_random_quote(self) -> Quote:
-        quote = await self.qdb_query_single("SELECT * FROM qdb_quotes ORDER BY RAND() LIMIT 1")
-        return Quote(**quote)
-
-    async def get_latest_quote(self) -> Quote:
-        quote = await self.qdb_query_single("SELECT * FROM qdb_quotes ORDER BY id DESC LIMIT 1")
-        return Quote(**quote)
-
-    async def get_best_quote(self) -> Quote:
-        quote = await self.qdb_query_single("SELECT * FROM qdb_quotes ORDER BY score DESC LIMIT 1")
-        return Quote(**quote)
-
-    async def get_quote_rank(self, quote_id: int) -> int:
-        result = await self.qdb_query_single("""
-            SELECT COUNT(DISTINCT(score)) + 1 AS rank
-            FROM qdb_quotes
-            WHERE score > (SELECT score FROM qdb_quotes WHERE id = %s)
-        """, quote_id)
-
-        return int(result['rank'])
-
-    async def get_quotes_for_rank(self, rank: int) -> List[Quote]:
-        quotes = await self.qdb_query_all("""
-            SELECT * FROM qdb_quotes WHERE score = (
-                SELECT score FROM qdb_quotes GROUP BY score ORDER BY score DESC LIMIT %s,1
-            ) ORDER BY id ASC
-        """, rank)
-
-        return [Quote(**quote) for quote in quotes]
-
-    async def find_quotes_by_search_term(self, search_term: str) -> List[Quote]:
-        quotes = await self.qdb_query_all(
-            "SELECT * FROM qdb_quotes WHERE quote LIKE %s ORDER BY id ASC",
-            f'%{search_term}%',
-        )
-
-        return [Quote(**quote) for quote in quotes]
-
-    async def modify_quote_score(self, quote_id: int, amount: int):
-        qdb_pool = await self.qdb_connection_pool()
-        async with qdb_pool.acquire() as connection:
-            async with connection.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute("UPDATE qdb_quotes SET score = score + %s WHERE id = %s", (amount, quote_id))
-                await connection.commit()
 
     @command_handler('q')
     async def read_quote(self, message: discord.Message, argument: str) -> None:
         # When no argument is given, we display a random quote
         if not argument:
             quote, latest_quote = await asyncio.gather(
-                self.get_random_quote(),
-                self.get_latest_quote(),
+                quotes.get_random_quote(),
+                quotes.get_latest_quote(),
             )
 
             return await message.channel.send(
@@ -181,8 +86,8 @@ class Sintia(discord.Client):
         # Otherwise, we attempt to either show a quote with id if it's an integer
         if argument.isdigit():
             quote, latest_quote = await asyncio.gather(
-                self.get_quote(int(argument)),
-                self.get_latest_quote(),
+                quotes.get_quote(int(argument)),
+                quotes.get_latest_quote(),
             )
 
             if not quote:
@@ -198,14 +103,14 @@ class Sintia(discord.Client):
 
     @command_handler('fq')
     async def find_quote(self, message: discord.Message, argument: str) -> None:
-        quotes = await self.find_quotes_by_search_term(argument)
-        if not quotes:
+        search_results = await quotes.find_quotes_by_search_term(argument)
+        if not search_results:
             return await message.channel.send('No quotes match that search term.')
 
-        total_results = len(quotes)
+        total_results = len(search_results)
         random_quote_index = random.choice(range(total_results))
 
-        quote = quotes[random_quote_index]
+        quote = search_results[random_quote_index]
         return await message.channel.send(
             f'Result {random_quote_index + 1} of {total_results}: Quote **{quote.id}** (rated {quote.score}):\n'
             f'```{quote.multiline_quote()}```',
@@ -213,7 +118,7 @@ class Sintia(discord.Client):
 
     @command_handler('lq')
     async def last_quote(self, message: discord.Message, argument: str) -> None:
-        quote = await self.get_latest_quote()
+        quote = await quotes.get_latest_quote()
         return await message.channel.send(
             f'Latest quote (**{quote.id}**, rated {quote.score}):\n'
             f'```{quote.multiline_quote()}```',
@@ -223,7 +128,7 @@ class Sintia(discord.Client):
     async def best_quote(self, message: discord.Message, argument: str) -> None:
         # No param simply shows the best quote
         if not argument:
-            quote = await self.get_best_quote()
+            quote = await quotes.get_best_quote()
             return await message.channel.send(
                 f'The most popular quote is Quote **{quote.id}** (rated {quote.score}):\n'
                 f'```{quote.multiline_quote()}```',
@@ -237,16 +142,16 @@ class Sintia(discord.Client):
         if rank <= 0:
             return
 
-        quotes = await self.get_quotes_for_rank(rank)
-        if len(quotes) == 1:
-            quote = quotes[0]
+        quotes_for_rank = await quotes.get_quotes_for_rank(rank)
+        if len(quotes_for_rank) == 1:
+            quote = quotes_for_rank[0]
             return await message.channel.send(
                 f'The {ordinal(rank)} most popular quote is Quote **{quote.id}** (rated {quote.score}):\n'
                 f'```{quote.multiline_quote()}```',
             )
 
-        await message.channel.send(f'Quotes sharing the {ordinal(rank)} rank (ranked {quotes[0].score}):')
-        for quote in quotes:
+        await message.channel.send(f'Quotes sharing the {ordinal(rank)} rank (ranked {quotes_for_rank[0].score}):')
+        for quote in quotes_for_rank:
             await message.channel.send(f'Quote **{quote.id}**:\n```{quote.multiline_quote()}```')
 
     @command_handler('iq')
@@ -256,8 +161,8 @@ class Sintia(discord.Client):
 
         quote_id = int(argument)
         quote, rank = await asyncio.gather(
-            self.get_quote(quote_id),
-            self.get_quote_rank(quote_id),
+            quotes.get_quote(quote_id),
+            quotes.get_quote_rank(quote_id),
         )
 
         if not quote:
@@ -282,13 +187,13 @@ class Sintia(discord.Client):
             return
 
         quote_id = int(argument)
-        quote = await self.get_quote(quote_id)
+        quote = await quotes.get_quote(quote_id)
         if not quote:
             return await message.channel.send(f'Quote with id {argument} does not exist')
 
         self.record_action('quote.vote', message.author.id)
         return await asyncio.gather(
-            self.modify_quote_score(quote.id, +1),
+            quotes.modify_quote_score(quote.id, +1),
             message.channel.send(f'Popularity of quote {quote.id} has increased.'),
         )
 
@@ -301,13 +206,13 @@ class Sintia(discord.Client):
             return
 
         quote_id = int(argument)
-        quote = await self.get_quote(quote_id)
+        quote = await quotes.get_quote(quote_id)
         if not quote:
             return await message.channel.send(f'Quote with id {quote_id} does not exist')
 
         self.record_action('quote.vote', message.author.id)
         return await asyncio.gather(
-            self.modify_quote_score(quote.id, -1),
+            quotes.modify_quote_score(quote.id, -1),
             message.channel.send(f'Popularity of quote {quote.id} has decreased.'),
         )
 
