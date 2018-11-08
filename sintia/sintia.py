@@ -4,7 +4,7 @@ import random
 import re
 from configparser import ConfigParser
 from datetime import datetime, timedelta
-from typing import NamedTuple, Dict, Optional, List
+from typing import NamedTuple, Dict, Optional, List, Callable, Any
 from urllib.parse import urlencode
 
 import aiohttp
@@ -32,8 +32,34 @@ class Quote(NamedTuple):
         return quote
 
 
+class CommandProcessor:
+    prefix: str
+    commands: Dict[str, Callable]
+
+    def __init__(self, *, prefix: str) -> None:
+        self.prefix = prefix
+        self.commands = {}
+
+    def __call__(self, command: str):
+        def decorator(func: Callable) -> Callable:
+            self.commands[self.prefix + command] = func
+
+            return func
+
+        return decorator
+
+    async def process_message(self, instance: Any, message: discord.Message) -> None:
+        trigger, _, argument = message.clean_content.partition(' ')
+        if trigger not in self.commands:
+            return
+
+        trigger_handler = self.commands[trigger]
+        return await trigger_handler(instance, message, argument.strip())
+
+
 class Sintia(discord.Client):
     config: ConfigParser
+    command_handler: CommandProcessor = CommandProcessor(prefix='!')
 
     def __init__(self, config: ConfigParser) -> None:
         super().__init__()
@@ -141,16 +167,10 @@ class Sintia(discord.Client):
                 await cursor.execute("UPDATE qdb_quotes SET score = score + %s WHERE id = %s", (amount, quote_id))
                 await connection.commit()
 
-    async def on_ready(self) -> None:
-        print(f'Logged in as {self.user.name} ({self.user.id})')
-
-    async def on_message(self, message: discord.Message) -> None:
-        # Avoid replying to self
-        if message.author == self.user:
-            return
-
-        # Get a random quote
-        if message.clean_content == '!q':
+    @command_handler('q')
+    async def read_quote(self, message: discord.Message, argument: str) -> None:
+        # When no argument is given, we display a random quote
+        if not argument:
             quote, latest_quote = await asyncio.gather(
                 self.get_random_quote(),
                 self.get_latest_quote(),
@@ -161,180 +181,193 @@ class Sintia(discord.Client):
                 f'```{quote.multiline_quote()}```',
             )
 
-        # Get quote with id or search
-        if message.clean_content.startswith('!q '):
-            trigger, _, search_term = message.clean_content.partition(' ')
-            if search_term.isdigit():
-                quote, latest_quote = await asyncio.gather(
-                    self.get_quote(int(search_term)),
-                    self.get_latest_quote(),
-                )
+        # Otherwise, we attempt to either show a quote with id if it's an integer
+        if argument.isdigit():
+            quote, latest_quote = await asyncio.gather(
+                self.get_quote(int(argument)),
+                self.get_latest_quote(),
+            )
 
-                if not quote:
-                    await message.channel.send(f'Quote with id {search_term} does not exist')
+            if not quote:
+                await message.channel.send(f'Quote with id {argument} does not exist')
 
-                return await message.channel.send(
-                    f'Quote **{quote.id}** of {latest_quote.id} (rated {quote.score}):\n'
-                    f'```{quote.multiline_quote()}```',
-                )
-
-        if message.clean_content == '!lq':
-            quote = await self.get_latest_quote()
             return await message.channel.send(
-                f'Latest quote (**{quote.id}**, rated {quote.score}):\n'
+                f'Quote **{quote.id}** of {latest_quote.id} (rated {quote.score}):\n'
                 f'```{quote.multiline_quote()}```',
             )
 
-        if message.clean_content == '!bq':
+        # If it's not a digit, it's treated as a search term
+        return await self.find_quote(message, argument)
+
+    @command_handler('fq')
+    async def find_quote(self, message: discord.Message, argument: str) -> None:
+        quotes = await self.find_quotes_by_search_term(argument)
+        if not quotes:
+            return await message.channel.send('No quotes match that search term.')
+
+        total_results = len(quotes)
+        random_quote_index = random.choice(range(total_results))
+
+        quote = quotes[random_quote_index]
+        return await message.channel.send(
+            f'Result {random_quote_index + 1} of {total_results}: Quote **{quote.id}** (rated {quote.score}):\n'
+            f'```{quote.multiline_quote()}```',
+        )
+
+    @command_handler('lq')
+    async def last_quote(self, message: discord.Message, argument: str) -> None:
+        quote = await self.get_latest_quote()
+        return await message.channel.send(
+            f'Latest quote (**{quote.id}**, rated {quote.score}):\n'
+            f'```{quote.multiline_quote()}```',
+        )
+
+    @command_handler('bq')
+    async def best_quote(self, message: discord.Message, argument: str) -> None:
+        # No param simply shows the best quote
+        if not argument:
             quote = await self.get_best_quote()
             return await message.channel.send(
                 f'The most popular quote is Quote **{quote.id}** (rated {quote.score}):\n'
                 f'```{quote.multiline_quote()}```',
             )
 
-        if message.clean_content.startswith('!bq '):
-            trigger, _, search_term = message.clean_content.partition(' ')
-            if search_term.isdigit():
-                rank = int(search_term)
-                if rank <= 0:
-                    return
+        # Only digit arguments are understood as rank
+        if not argument.isdigit():
+            return
 
-                quotes = await self.get_quotes_for_rank(rank)
-                if len(quotes) == 1:
-                    quote = quotes[0]
-                    return await message.channel.send(
-                        f'The {ordinal(rank)} most popular quote is Quote **{quote.id}** (rated {quote.score}):\n'
-                        f'```{quote.multiline_quote()}```',
-                    )
+        rank = int(argument)
+        if rank <= 0:
+            return
 
-                await message.channel.send(f'Quotes sharing the {ordinal(rank)} rank (ranked {quotes[0].score}):')
-                for quote in quotes:
-                    await message.channel.send(f'Quote **{quote.id}**:\n```{quote.multiline_quote()}```')
-
-        if message.clean_content.startswith('!fq '):
-            trigger, _, search_term = message.clean_content.partition(' ')
-
-            quotes = await self.find_quotes_by_search_term(search_term)
-            if not quotes:
-                return await message.channel.send('No quotes match that search term.')
-
-            total_results = len(quotes)
-            random_quote_index = random.choice(range(total_results))
-
-            quote = quotes[random_quote_index]
+        quotes = await self.get_quotes_for_rank(rank)
+        if len(quotes) == 1:
+            quote = quotes[0]
             return await message.channel.send(
-                f'Result {random_quote_index + 1} of {total_results}: Quote **{quote.id}** (rated {quote.score}):\n'
+                f'The {ordinal(rank)} most popular quote is Quote **{quote.id}** (rated {quote.score}):\n'
                 f'```{quote.multiline_quote()}```',
             )
 
-        if message.clean_content.startswith('!+q '):
-            if self.is_rate_limited('quote.vote', message.author.id):
-                return
+        await message.channel.send(f'Quotes sharing the {ordinal(rank)} rank (ranked {quotes[0].score}):')
+        for quote in quotes:
+            await message.channel.send(f'Quote **{quote.id}**:\n```{quote.multiline_quote()}```')
 
-            trigger, _, search_term = message.clean_content.partition(' ')
-            if not search_term.isdigit():
-                return
+    @command_handler('iq')
+    async def quote_info(self, message: discord.Message, argument: str) -> None:
+        if not argument.isdigit():
+            return
 
-            quote_id = int(search_term)
-            quote = await self.get_quote(quote_id)
-            if not quote:
-                return await message.channel.send(f'Quote with id {search_term} does not exist')
+        quote_id = int(argument)
+        quote, rank = await asyncio.gather(
+            self.get_quote(quote_id),
+            self.get_quote_rank(quote_id),
+        )
 
-            self.record_action('quote.vote', message.author.id)
-            return await asyncio.gather(
-                self.modify_quote_score(quote.id, +1),
-                message.channel.send(f'Popularity of quote {quote.id} has increased.'),
-            )
+        if not quote:
+            return await message.channel.send(f'Quote with id {argument} does not exist')
 
-        if message.clean_content.startswith('!-q '):
-            if self.is_rate_limited('quote.vote', message.author.id):
-                return
+        quote_info = f'Quote **{quote.id}** was added'
+        if quote.creator:
+            quote_info += f' by {quote.creator}'
+        if quote.addchannel:
+            quote_info += f' in channel {quote.addchannel}'
+        if quote.adddate:
+            quote_info += f' on {quote.adddate}'
 
-            trigger, _, search_term = message.clean_content.partition(' ')
-            if not search_term.isdigit():
-                return
+        return await message.channel.send(f'{quote_info}. It is ranked {ordinal(rank)}.')
 
-            quote_id = int(search_term)
-            quote = await self.get_quote(quote_id)
-            if not quote:
-                return await message.channel.send(f'Quote with id {search_term} does not exist')
+    @command_handler('+q')
+    async def upvote_quote(self, message: discord.Message, argument: str) -> None:
+        if self.is_rate_limited('quote.vote', message.author.id):
+            return
 
-            self.record_action('quote.vote', message.author.id)
-            return await asyncio.gather(
-                self.modify_quote_score(quote.id, -1),
-                message.channel.send(f'Popularity of quote {quote.id} has decreased.'),
-            )
+        if not argument.isdigit():
+            return
 
-        if message.clean_content.startswith('!iq '):
-            trigger, _, search_term = message.clean_content.partition(' ')
-            if not search_term.isdigit():
-                return
+        quote_id = int(argument)
+        quote = await self.get_quote(quote_id)
+        if not quote:
+            return await message.channel.send(f'Quote with id {argument} does not exist')
 
-            quote_id = int(search_term)
-            quote, rank = await asyncio.gather(
-                self.get_quote(quote_id),
-                self.get_quote_rank(quote_id),
-            )
+        self.record_action('quote.vote', message.author.id)
+        return await asyncio.gather(
+            self.modify_quote_score(quote.id, +1),
+            message.channel.send(f'Popularity of quote {quote.id} has increased.'),
+        )
 
-            if not quote:
-                return await message.channel.send(f'Quote with id {search_term} does not exist')
+    @command_handler('-q')
+    async def downvote_quote(self, message: discord.Message, argument: str) -> None:
+        if self.is_rate_limited('quote.vote', message.author.id):
+            return
 
-            quote_info = f'Quote **{quote.id}** was added'
-            if quote.creator:
-                quote_info += f' by {quote.creator}'
-            if quote.addchannel:
-                quote_info += f' in channel {quote.addchannel}'
-            if quote.adddate:
-                quote_info += f' on {quote.adddate}'
+        if not argument.isdigit():
+            return
 
-            return await message.channel.send(f'{quote_info}. It is ranked {ordinal(rank)}.')
+        quote_id = int(argument)
+        quote = await self.get_quote(quote_id)
+        if not quote:
+            return await message.channel.send(f'Quote with id {quote_id} does not exist')
 
-        # Google search
-        if message.clean_content.startswith('!g '):
-            trigger, _, search_term = message.clean_content.partition(' ')
-            if not search_term:
-                return
+        self.record_action('quote.vote', message.author.id)
+        return await asyncio.gather(
+            self.modify_quote_score(quote.id, -1),
+            message.channel.send(f'Popularity of quote {quote.id} has decreased.'),
+        )
 
-            results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
-                'q': search_term,
-                'key': self.config['search.google']['api_key'],
-                'cx': self.config['search.google']['search_engine_id'],
-                'num': '1',
-            }))
+    @command_handler('g')
+    async def google_search(self, message: discord.Message, argument: str) -> None:
+        if not argument:
+            return
 
-            json_results = json.loads(results)
-            search_result, *rest = json_results.get('items', [None])
-            if not search_result:
-                return await message.channel.send(f'No results found for `{search_term}`')
+        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
+            'q': argument,
+            'key': self.config['search.google']['api_key'],
+            'cx': self.config['search.google']['search_engine_id'],
+            'num': '1',
+        }))
 
-            return await message.channel.send(
-                f'**{search_result["title"]}**\n'
-                f'<{search_result["link"]}>'
-                f'\n'
-                f'{search_result["snippet"]}\n',
-            )
+        json_results = json.loads(results)
+        search_result, *rest = json_results.get('items', [None])
+        if not search_result:
+            return await message.channel.send(f'No results found for `{argument}`')
 
-        # Google image search
-        if message.clean_content.startswith('!gi '):
-            trigger, _, search_term = message.clean_content.partition(' ')
-            if not search_term:
-                return
+        return await message.channel.send(
+            f'**{search_result["title"]}**\n'
+            f'<{search_result["link"]}>'
+            f'\n'
+            f'{search_result["snippet"]}\n',
+        )
 
-            results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
-                'q': search_term,
-                'searchType': 'image',
-                'key': self.config['search.google']['api_key'],
-                'cx': self.config['search.google']['search_engine_id'],
-                'num': '1',
-            }))
+    @command_handler('gi')
+    async def google_image_search(self, message: discord.Message, argument: str) -> None:
+        if not argument:
+            return
 
-            json_results = json.loads(results)
-            search_result, *rest = json_results.get('items', [None])
-            if not search_result:
-                return await message.channel.send(f'No results found for `{search_term}`')
+        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
+            'q': argument,
+            'searchType': 'image',
+            'key': self.config['search.google']['api_key'],
+            'cx': self.config['search.google']['search_engine_id'],
+            'num': '1',
+        }))
 
-            return await message.channel.send(search_result["link"])
+        json_results = json.loads(results)
+        search_result, *rest = json_results.get('items', [None])
+        if not search_result:
+            return await message.channel.send(f'No results found for `{argument}`')
 
-        # Hello world!
-        if message.clean_content == '!hello':
-            await message.channel.send(f'Hello {message.author.mention}')
+        return await message.channel.send(search_result["link"])
+
+    @command_handler('hello')
+    async def greet(self, message: discord.Message, argument: str) -> None:
+        return await message.channel.send(f'Hello {message.author.mention}')
+
+    async def on_ready(self) -> None:
+        print(f'Logged in as {self.user.name} ({self.user.id})')
+
+    async def on_message(self, message: discord.Message) -> None:
+        # Avoid replying to self
+        if message.author == self.user:
+            return
+
+        return await self.command_handler.process_message(self, message)
