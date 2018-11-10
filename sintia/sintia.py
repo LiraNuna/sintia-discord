@@ -265,14 +265,10 @@ class Sintia(discord.Client):
     @command_handler('gif')
     async def google_giphy_search(self, message: discord.Message , argument: str) -> None:
         return await self.google_image_search(message, argument + ' site:giphy.com')
-        if not argument:
-            return
         
     @command_handler('ten')
     async def google_tenor_search(self, message: discord.Message , argument: str) -> None:
         return await self.google_image_search(message, argument + ' site:tenor.com')
-        if not argument:
-            return
 
     @command_handler('hello')
     async def greet(self, message: discord.Message, argument: str) -> None:
