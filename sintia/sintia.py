@@ -269,7 +269,7 @@ class Sintia(discord.Client):
             return
         
     @command_handler('ten')
-    async def google_giphy_search(self, message: discord.Message , argument: str) -> None:
+    async def google_tenor_search(self, message: discord.Message , argument: str) -> None:
         return await self.google_image_search(message, argument + ' site:tenor.com')
         if not argument:
             return
