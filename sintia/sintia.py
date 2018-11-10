@@ -275,3 +275,11 @@ class Sintia(discord.Client):
             return
 
         return await self.command_handler.process_message(self, message)
+
+    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User) -> None:
+        # Only care about reactions to own messages
+        if reaction.message.author != self.user:
+            return
+
+        if reaction.emoji == '🚫' and reaction.count >= 2:
+            return await reaction.message.delete()
