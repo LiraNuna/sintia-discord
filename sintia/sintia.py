@@ -270,6 +270,14 @@ class Sintia(discord.Client):
     async def google_tenor_search(self, message: discord.Message , argument: str) -> None:
         return await self.google_image_search(message, argument + ' site:tenor.com')
 
+    @command_handler('w')
+    async def wikipedia_search(self, message: discord.Message, argument: str) -> None:
+        return await self.google_search(message, argument + ' site:wikipedia.org')
+
+    @command_handler('y')
+    async def youtube_search(self, message: discord.Message, argument: str) -> None:
+        return await self.google_search(message, argument + ' site:youtube.com')
+    
     @command_handler('hello')
     async def greet(self, message: discord.Message, argument: str) -> None:
         return await message.channel.send(f'Hello {message.author.mention}')
