@@ -264,31 +264,15 @@ class Sintia(discord.Client):
     
     @command_handler('gif')
     async def google_giphy_search(self, message: discord.Message , argument: str) -> None:
+        return await self.google_image_search(message, argument + ' site:giphy.com')
         if not argument:
             return
-
-        google_config = get_config_section('search.google')
-        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
-            'q': argument + " site:giphy.com",
-            'searchType': 'image',
-            'key': google_config['api_key'],
-            'cx': google_config['search_engine_id'],
-            'num': '1',
-        }))
         
     @command_handler('ten')
-    async def google_tenor_search(self, message: discord.Message , argument: str) -> None:
+    async def google_giphy_search(self, message: discord.Message , argument: str) -> None:
+        return await self.google_image_search(message, argument + ' site:tenor.com')
         if not argument:
             return
-
-        google_config = get_config_section('search.google')
-        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
-            'q': argument + " site:tenor.com",
-            'searchType': 'image',
-            'key': google_config['api_key'],
-            'cx': google_config['search_engine_id'],
-            'num': '1',
-        }))
 
     @command_handler('hello')
     async def greet(self, message: discord.Message, argument: str) -> None:
