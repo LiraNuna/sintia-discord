@@ -274,7 +274,7 @@ class Sintia(discord.Client):
     async def wikipedia_search(self, message: discord.Message, argument: str) -> None:
         return await self.google_search(message, argument + ' site:wikipedia.org')
 
-    @command_handler('y')
+    @command_handler('yt')
     async def youtube_search(self, message: discord.Message, argument: str) -> None:
         return await self.google_search(message, argument + ' site:youtube.com')
     
