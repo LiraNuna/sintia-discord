@@ -261,6 +261,27 @@ class Sintia(discord.Client):
             return await message.channel.send(f'No results found for `{argument}`')
 
         return await message.channel.send(search_result["link"])
+    
+    @command_handler('gif')
+    async def google_image_search(self, message: discord.Message , argument: str) -> None:
+        if not argument:
+            return
+
+        google_config = get_config_section('search.google')
+        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
+            'q': argument + " filetype:gif OR filetype:mp4 OR filetype:apng OR filetype:webp OR filetype:mng OR filetype:flif OR OR filetype:webm",
+            'searchType': 'image',
+            'key': google_config['api_key'],
+            'cx': google_config['search_engine_id'],
+            'num': '1',
+        }))
+
+        json_results = json.loads(results)
+        search_result, *rest = json_results.get('items', [None])
+        if not search_result:
+            return await message.channel.send(f'No results found for `{argument}`')
+
+        return await message.channel.send(search_result["link"])
 
     @command_handler('hello')
     async def greet(self, message: discord.Message, argument: str) -> None:
