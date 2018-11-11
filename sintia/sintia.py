@@ -261,11 +261,11 @@ class Sintia(discord.Client):
             return await message.channel.send(f'No results found for `{argument}`')
 
         return await message.channel.send(search_result["link"])
-    
+
     @command_handler('gif')
     async def google_gif_search(self, message: discord.Message , argument: str) -> None:
         return await self.google_image_search(message, argument + ' filetype:gif')
-    
+
     @command_handler('hello')
     async def greet(self, message: discord.Message, argument: str) -> None:
         return await message.channel.send(f'Hello {message.author.mention}')
