@@ -37,6 +37,8 @@ async def get_connection_pool():
     )
 
 
+
+
 async def query_single(query: str, *args) -> Optional[Dict]:
     qdb_pool = await get_connection_pool()
     async with qdb_pool.acquire() as connection:
@@ -103,6 +105,22 @@ async def find_quotes_by_search_term(search_term: str) -> List[Quote]:
     )
 
     return [Quote(**quote) for quote in quotes]
+
+
+async def add_quote(creator: str, quote: str, addchannel: str) -> int:
+    latest_quote = await get_latest_quote()
+    new_quote_id = latest_quote.id + 1
+
+    qdb_pool = await get_connection_pool()
+    async with qdb_pool.acquire() as connection:
+        async with connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("""
+                INSERT INTO qdb_quotes (id, creator, quote, addchannel) VALUES (%s, %s, %s, %s)
+            """, (new_quote_id, creator, quote, addchannel))
+
+            await connection.commit()
+
+    return new_quote_id
 
 
 async def modify_quote_score(quote_id: int, amount: int):

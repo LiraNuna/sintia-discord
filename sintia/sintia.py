@@ -178,6 +178,17 @@ class Sintia(discord.Client):
 
         return await message.channel.send(f'{quote_info}. It is ranked {ordinal(rank)}.')
 
+    @command_handler('aq')
+    async def add_quote(self, message: discord.Message, argument: str) -> None:
+        if self.is_rate_limited('quote.add', message.author.id):
+            return
+
+        if not argument:
+            return
+
+        quote_id = await quotes.add_quote(message.author.display_name, argument, message.channel.name)
+        return await message.channel.send(f'Quote #{quote_id} has been added.')
+
     @command_handler('+q')
     async def upvote_quote(self, message: discord.Message, argument: str) -> None:
         if self.is_rate_limited('quote.vote', message.author.id):
