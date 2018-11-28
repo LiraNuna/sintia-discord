@@ -277,6 +277,40 @@ class Sintia(discord.Client):
     async def google_gif_search(self, message: discord.Message , argument: str) -> None:
         return await self.google_image_search(message, argument + ' filetype:gif')
 
+    @command_handler('w')
+    async def wikipedia_search(self, message: discord.Message, argument: str) -> None:
+        if not argument:
+            return
+
+        raw_search_results = await self.http_get_request('https://en.wikipedia.org/w/api.php?' + urlencode({
+            'action': 'query',
+            'format': 'json',
+            'prop': 'extracts|info',
+            'indexpageids': 1,
+            'generator': 'search',
+            'utf8': 1,
+            'exlimit': 1,
+            'explaintext': 1,
+            'inprop': 'url',
+            'gsrsearch': argument,
+            'gsrlimit': 1,
+        }))
+
+        search_results = json.loads(raw_search_results)
+        page_ids = search_results['query']['pageids']
+        if not page_ids:
+            return await message.channel.send(f'No results found for `{argument}`')
+
+        page_id, *rest = page_ids
+        page_info = search_results['query']['pages'][page_id]
+        paragraphs = page_info['extract'].split('\n')
+        return await message.channel.send(
+            f'**{page_info["title"]}**\n'
+            f'<{page_info["canonicalurl"]}>'
+            f'\n'
+            f'{paragraphs[0]}\n',
+        )
+
     @command_handler('hello')
     async def greet(self, message: discord.Message, argument: str) -> None:
         return await message.channel.send(f'Hello {message.author.mention}')
