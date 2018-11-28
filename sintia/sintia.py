@@ -311,6 +311,28 @@ class Sintia(discord.Client):
             f'{paragraphs[0]}\n',
         )
 
+    @command_handler('ud')
+    async def urbandictionary_search(self, message: discord.Message, argument: str) -> None:
+        if not argument:
+            return
+
+        raw_search_results = await self.http_get_request('http://api.urbandictionary.com/v0/define?' + urlencode({
+            'term': argument,
+        }))
+
+        search_results = json.loads(raw_search_results)
+        if not search_results['list']:
+            return await message.channel.send(f'No results found for `{argument}`')
+
+        result, *rest = search_results['list']
+        definition = result["definition"].replace("[", "").replace("]", "")
+        return await message.channel.send(
+            f'**{result["word"]}**\n'
+            f'<{result["permalink"]}>'
+            f'\n'
+            f'{definition}\n',
+        )
+
     @command_handler('hello')
     async def greet(self, message: discord.Message, argument: str) -> None:
         return await message.channel.send(f'Hello {message.author.mention}')
