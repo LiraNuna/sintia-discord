@@ -277,6 +277,27 @@ class Sintia(discord.Client):
     async def google_gif_search(self, message: discord.Message , argument: str) -> None:
         return await self.google_image_search(message, argument + ' filetype:gif')
 
+    @command_handler('yt')
+    async def youtube_search(self, message: discord.Message , argument: str) -> None:
+        if not argument:
+            return
+
+        youtube_config = get_config_section('search.youtube')
+        results = await self.http_get_request('https://www.googleapis.com/youtube/v3/search?' + urlencode({
+            'q': argument,
+            'part': 'id',
+            'type': 'video',
+            'key': youtube_config['api_key'],
+            'maxResults': '1',
+        }))
+
+        json_results = json.loads(results)
+        search_result, *rest = json_results.get('items', [None])
+        if not search_result:
+            return await message.channel.send(f'No results found for `{argument}`')
+
+        return await message.channel.send(f'https://www.youtube.com/watch?v={search_result["id"]["videoId"]}')
+
     @command_handler('w')
     async def wikipedia_search(self, message: discord.Message, argument: str) -> None:
         if not argument:
