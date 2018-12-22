@@ -2,7 +2,7 @@ import asyncio
 import json
 import random
 from datetime import datetime, timedelta
-from typing import Dict, Callable, Any
+from typing import Dict, Callable, Any, Union
 from urllib.parse import urlencode
 
 import aiohttp
@@ -48,15 +48,15 @@ class Sintia(discord.Client):
         super().run(discord_config['token'])
 
     @memoize
-    def get_rate_limits(self, action: str) -> Dict[int, datetime]:
+    def get_rate_limits(self, action: str, *sections: Union[str, int]) -> Dict[int, datetime]:
         return {}
 
-    def record_action(self, action: str, user_id: int) -> None:
-        rate_limits = self.get_rate_limits(action)
+    def record_action(self, user_id: int, action: str, *sections: Union[str, int]) -> None:
+        rate_limits = self.get_rate_limits(action, *sections)
         rate_limits[user_id] = datetime.now()
 
-    def is_rate_limited(self, action: str, user_id: int) -> bool:
-        rate_limits = self.get_rate_limits(action)
+    def is_rate_limited(self, user_id: int, action: str, *sections: Union[str, int]) -> bool:
+        rate_limits = self.get_rate_limits(action, *sections)
         if not user_id in rate_limits:
             return False
 
@@ -180,7 +180,7 @@ class Sintia(discord.Client):
 
     @command_handler('aq')
     async def add_quote(self, message: discord.Message, argument: str) -> None:
-        if self.is_rate_limited('quote.add', message.author.id):
+        if self.is_rate_limited(message.author.id, 'quote.add'):
             return
 
         if not argument:
@@ -191,9 +191,6 @@ class Sintia(discord.Client):
 
     @command_handler('+q')
     async def upvote_quote(self, message: discord.Message, argument: str) -> None:
-        if self.is_rate_limited('quote.vote', message.author.id):
-            return
-
         if not argument.isdigit():
             return
 
@@ -202,7 +199,10 @@ class Sintia(discord.Client):
         if not quote:
             return await message.channel.send(f'Quote with id {argument} does not exist')
 
-        self.record_action('quote.vote', message.author.id)
+        if self.is_rate_limited(message.author.id, 'quote.vote', quote_id):
+            return
+
+        self.record_action(message.author.id, 'quote.vote', quote_id)
         return await asyncio.gather(
             quotes.modify_quote_score(quote.id, +1),
             message.channel.send(f'Popularity of quote {quote.id} has increased.'),
@@ -210,9 +210,6 @@ class Sintia(discord.Client):
 
     @command_handler('-q')
     async def downvote_quote(self, message: discord.Message, argument: str) -> None:
-        if self.is_rate_limited('quote.vote', message.author.id):
-            return
-
         if not argument.isdigit():
             return
 
@@ -221,7 +218,10 @@ class Sintia(discord.Client):
         if not quote:
             return await message.channel.send(f'Quote with id {quote_id} does not exist')
 
-        self.record_action('quote.vote', message.author.id)
+        if self.is_rate_limited(message.author.id, 'quote.vote', quote_id):
+            return
+
+        self.record_action(message.author.id, 'quote.vote', quote_id)
         return await asyncio.gather(
             quotes.modify_quote_score(quote.id, -1),
             message.channel.send(f'Popularity of quote {quote.id} has decreased.'),
