@@ -180,12 +180,13 @@ class Sintia(discord.Client):
 
     @command_handler('aq')
     async def add_quote(self, message: discord.Message, argument: str) -> None:
-        if self.is_rate_limited(message.author.id, 'quote.add'):
-            return
-
         if not argument:
             return
 
+        if self.is_rate_limited(message.author.id, 'quote.add'):
+            return
+
+        self.record_action(message.author.id, 'quote.add')
         quote_id = await quotes.add_quote(message.author.display_name, argument, message.channel.name)
         return await message.channel.send(f'Quote #{quote_id} has been added.')
 
