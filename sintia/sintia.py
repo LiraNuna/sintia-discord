@@ -42,6 +42,16 @@ class CommandProcessor:
 class Sintia(discord.Client):
     command_handler: CommandProcessor = CommandProcessor(prefix='!')
 
+    def __init__(self, *, loop=None, **options):
+        discord_config = get_config_section('discord')
+
+        options.setdefault('max_messages', discord_config.getint('max_messages'))
+
+        super().__init__(
+            loop=loop,
+            **options,
+        )
+
     def run(self):
         discord_config = get_config_section('discord')
 
