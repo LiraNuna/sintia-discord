@@ -365,6 +365,23 @@ class Sintia(discord.Client):
             f'{definition}\n',
         )
 
+    @command_handler('countdown')
+    async def countdown(self, message: discord.Message, argument: str) -> None:
+        if not argument.isdigit():
+            return
+
+        countdown_amount = int(argument)
+        if countdown_amount < 1 or countdown_amount > 15:
+            return
+
+        for i in range(countdown_amount, 0, -1):
+            await asyncio.gather(
+                message.channel.send(f'{i}'),
+                asyncio.sleep(1),
+            )
+
+        return await message.channel.send('DONE!')
+
     @command_handler('hello')
     async def greet(self, message: discord.Message, argument: str) -> None:
         return await message.channel.send(f'Hello {message.author.mention}')
