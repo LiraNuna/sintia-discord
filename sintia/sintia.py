@@ -257,15 +257,13 @@ class Sintia(discord.Client):
         if not argument:
             return
 
-        safe = 'haram' not in message.channel.name
-
         google_config = get_config_section('searchs.google')
         results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
             'q': argument,
             'searchType': 'image',
             'key': google_config['api_key'],
             'cx': google_config['search_engine_id'],
-            'safe': 'active' if safe else 'off',
+            'safe': 'active' if message.channel.is_nsfw() else 'off',
             'num': '1',
         }))
 
