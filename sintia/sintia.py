@@ -257,7 +257,7 @@ class Sintia(discord.Client):
         if not argument:
             return
 
-        google_config = get_config_section('searchs.google')
+        google_config = get_config_section('search.google')
         results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
             'q': argument,
             'searchType': 'image',
