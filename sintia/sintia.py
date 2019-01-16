@@ -263,7 +263,7 @@ class Sintia(discord.Client):
             'searchType': 'image',
             'key': google_config['api_key'],
             'cx': google_config['search_engine_id'],
-            'safe': 'active' if not message.channel.is_nsfw() else 'off',
+            'safe': 'off' if message.channel.is_nsfw() else 'active',
             'num': '1',
         }))
 
