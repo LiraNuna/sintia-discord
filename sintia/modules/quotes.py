@@ -54,7 +54,7 @@ async def query_all(query: str, *args) -> Optional[List[Dict]]:
 
 
 async def get_quote(id: int) -> Optional[Quote]:
-    quote = await query_single("SELECT * FROM qdb_quotes WHERE id = %s", id)
+    quote = await query_single("SELECT * FROM quotes WHERE id = %s", id)
     if not quote:
         return None
 
@@ -62,25 +62,25 @@ async def get_quote(id: int) -> Optional[Quote]:
 
 
 async def get_random_quote() -> Quote:
-    quote = await query_single("SELECT * FROM qdb_quotes ORDER BY RAND() LIMIT 1")
+    quote = await query_single("SELECT * FROM quotes ORDER BY RAND() LIMIT 1")
     return Quote(**quote)
 
 
 async def get_latest_quote() -> Quote:
-    quote = await query_single("SELECT * FROM qdb_quotes ORDER BY id DESC LIMIT 1")
+    quote = await query_single("SELECT * FROM quotes ORDER BY id DESC LIMIT 1")
     return Quote(**quote)
 
 
 async def get_best_quote() -> Quote:
-    quote = await query_single("SELECT * FROM qdb_quotes ORDER BY score DESC LIMIT 1")
+    quote = await query_single("SELECT * FROM quotes ORDER BY score DESC LIMIT 1")
     return Quote(**quote)
 
 
 async def get_quote_rank(quote_id: int) -> int:
     result = await query_single("""
         SELECT COUNT(DISTINCT(score)) + 1 AS rank
-        FROM qdb_quotes
-        WHERE score > (SELECT score FROM qdb_quotes WHERE id = %s)
+        FROM quotes
+        WHERE score > (SELECT score FROM quotes WHERE id = %s)
     """, quote_id)
 
     return int(result['rank'])
@@ -88,8 +88,8 @@ async def get_quote_rank(quote_id: int) -> int:
 
 async def get_quotes_for_rank(rank: int) -> List[Quote]:
     quotes = await query_all("""
-        SELECT * FROM qdb_quotes WHERE score = (
-            SELECT score FROM qdb_quotes GROUP BY score ORDER BY score DESC LIMIT %s,1
+        SELECT * FROM quotes WHERE score = (
+            SELECT score FROM quotes GROUP BY score ORDER BY score DESC LIMIT %s,1
         ) ORDER BY id ASC
     """, rank)
 
@@ -98,7 +98,7 @@ async def get_quotes_for_rank(rank: int) -> List[Quote]:
 
 async def find_quotes_by_search_term(search_term: str) -> List[Quote]:
     quotes = await query_all(
-        "SELECT * FROM qdb_quotes WHERE quote LIKE %s ORDER BY id ASC",
+        "SELECT * FROM quotes WHERE quote LIKE %s ORDER BY id ASC",
         f'%{search_term}%',
     )
 
@@ -113,7 +113,7 @@ async def add_quote(creator: str, quote: str, addchannel: str) -> int:
     async with qdb_pool.acquire() as connection:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("""
-                INSERT INTO qdb_quotes (id, creator, quote, addchannel) VALUES (%s, %s, %s, %s)
+                INSERT INTO quotes (id, creator, quote, addchannel) VALUES (%s, %s, %s, %s)
             """, (new_quote_id, creator, quote, addchannel))
 
             await connection.commit()
@@ -125,5 +125,5 @@ async def modify_quote_score(quote_id: int, amount: int):
     qdb_pool = await get_connection_pool()
     async with qdb_pool.acquire() as connection:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("UPDATE qdb_quotes SET score = score + %s WHERE id = %s", (amount, quote_id))
+            await cursor.execute("UPDATE quotes SET score = score + %s WHERE id = %s", (amount, quote_id))
             await connection.commit()
