@@ -130,9 +130,14 @@ class Sintia(discord.Client):
 
     @command_handler('lq')
     async def last_quote(self, message: discord.Message, argument: str) -> None:
-        quote = await quotes.get_latest_quote()
+        quote = await quotes.get_latest_quote(containing=argument)
+
+        extra_message = ''
+        if argument:
+            extra_message = 'containing search term '
+
         return await message.channel.send(
-            f'Latest quote (**{quote.id}**, rated {quote.score}):\n'
+            f'Latest quote {extra_message}(**{quote.id}**, rated {quote.score}):\n'
             f'```{quote.multiline_quote()}```',
         )
 
