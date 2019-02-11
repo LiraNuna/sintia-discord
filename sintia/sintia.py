@@ -1,15 +1,17 @@
 import asyncio
 import json
 import random
+import re
+from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Dict, Callable, Any, Union
+from typing import Dict, Callable, Any, Union, MutableMapping
 from urllib.parse import urlencode
 
 import aiohttp
 import discord
 
 from sintia.config import get_config_section
-from sintia.modules import quotes
+from sintia.modules import quotes, user_votes
 from sintia.util import memoize
 from sintia.util import ordinal
 
@@ -387,6 +389,44 @@ class Sintia(discord.Client):
     async def greet(self, message: discord.Message, argument: str) -> None:
         return await message.channel.send(f'Hello {message.author.mention}')
 
+    @command_handler('score')
+    async def show_user_vote_score(self, message: discord.Message, argument: str):
+        target_user = message.author
+        if argument and message.mentions:
+            target_user, *rest = message.mentions
+            if rest:
+                return
+
+        score = await user_votes.get_score_for_user(target_user, message.guild)
+        return await message.channel.send(f'{target_user.mention} has {score} points')
+
+    async def vote_handler(self, message: discord.Message) -> None:
+        # Ignore bot votes
+        if message.author.bot:
+            return
+
+        point_value = {
+            '++': +1,
+            '--': -1,
+        }
+
+        # We clean content of codeblocks since they don't have real mentions
+        clean_content = re.sub('`[^`]+`', '', re.sub('```.+```', '', message.content))
+
+        # Since you can vote "multiple times" by chaining votes, we first aggregate by (voter,votee)->vote
+        # before we deduplicate
+        aggregated_votes: MutableMapping[discord.User, int] = defaultdict(int)
+        for mentioned_user_id, action in re.findall(r'<@!?([0-9]+)>(\+\+|--)', clean_content):
+            aggregated_votes[message.guild.get_member(int(mentioned_user_id))] += point_value[action]
+
+        # Ignore self-voting
+        has_self_vote = aggregated_votes.pop(message.author, None)
+        if has_self_vote or not aggregated_votes:
+            return
+
+        await user_votes.add_votes(message, aggregated_votes)
+        return await message.add_reaction('✅')
+
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
@@ -395,7 +435,10 @@ class Sintia(discord.Client):
         if message.author == self.user:
             return
 
-        return await self.command_handler.process_message(self, message)
+        await asyncio.gather(
+            self.vote_handler(message),
+            self.command_handler.process_message(self, message),
+        )
 
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User) -> None:
         # Only care about reactions to own messages
