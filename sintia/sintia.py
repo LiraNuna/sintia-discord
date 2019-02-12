@@ -131,6 +131,8 @@ class Sintia(discord.Client):
     @command_handler('lq')
     async def last_quote(self, message: discord.Message, argument: str) -> None:
         quote = await quotes.get_latest_quote(containing=argument)
+        if not quote:
+            return await message.channel.send(f'No quotes found')
 
         extra_message = ''
         if argument:

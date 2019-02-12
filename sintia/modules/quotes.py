@@ -66,8 +66,11 @@ async def get_random_quote() -> Quote:
     return Quote(**quote)
 
 
-async def get_latest_quote(containing: str = '') -> Quote:
+async def get_latest_quote(containing: str = '') -> Optional[Quote]:
     quote = await query_single("SELECT * FROM quotes WHERE quote LIKE %s ORDER BY id DESC LIMIT 1", f'%{containing}%')
+    if not quote:
+        return None
+
     return Quote(**quote)
 
 
