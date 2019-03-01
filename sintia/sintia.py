@@ -12,8 +12,10 @@ import discord
 
 from sintia.config import get_config_section
 from sintia.modules import quotes, user_votes
+from sintia.modules import user_stats
 from sintia.util import memoize
 from sintia.util import ordinal
+from sintia.util import readable_timedelta
 
 
 class CommandProcessor:
@@ -407,6 +409,23 @@ class Sintia(discord.Client):
         score = await user_votes.get_score_for_user(target_user, message.guild)
         return await message.channel.send(f'{target_user.mention} has {score} points')
 
+    @command_handler('lastspoke')
+    async def show_user_last_spoke(self, message: discord.Message, argument: str):
+        target_user = None
+        if argument and message.mentions:
+            target_user, *rest = message.mentions
+            if rest:
+                return
+        if not target_user:
+            return
+
+        last_spoke = await user_stats.get_user_last_spoke(target_user, message.guild)
+        if not last_spoke:
+            return await message.channel.send(f"I don't have a record of {target_user.mention} ever speaking here")
+
+        relative_seconds = readable_timedelta(datetime.utcnow() - last_spoke)
+        return await message.channel.send(f"{target_user.mention} last spoke {relative_seconds}")
+
     async def vote_handler(self, message: discord.Message) -> None:
         # Ignore bot votes
         if message.author.bot:
@@ -444,6 +463,7 @@ class Sintia(discord.Client):
 
         await asyncio.gather(
             self.vote_handler(message),
+            user_stats.record_message(message),
             self.command_handler.process_message(self, message),
         )
 
