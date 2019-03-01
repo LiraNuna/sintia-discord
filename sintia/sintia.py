@@ -15,6 +15,7 @@ from sintia.modules import quotes, user_votes
 from sintia.modules import user_stats
 from sintia.util import memoize
 from sintia.util import ordinal
+from sintia.util import plural
 from sintia.util import readable_timedelta
 
 
@@ -407,7 +408,7 @@ class Sintia(discord.Client):
                 return
 
         score = await user_votes.get_score_for_user(target_user, message.guild)
-        return await message.channel.send(f'{target_user.mention} has {score} points')
+        return await message.channel.send(f'{target_user.mention} has {plural(score, "point")}')
 
     @command_handler('lastspoke')
     async def show_user_last_spoke(self, message: discord.Message, argument: str):
