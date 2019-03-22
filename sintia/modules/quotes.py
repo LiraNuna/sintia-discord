@@ -81,12 +81,12 @@ async def get_best_quote() -> Quote:
 
 async def get_quote_rank(quote_id: int) -> int:
     result = await query_single("""
-        SELECT COUNT(DISTINCT(score)) + 1 AS rank
+        SELECT COUNT(DISTINCT(score)) + 1 AS quote_rank
         FROM quotes
         WHERE score > (SELECT score FROM quotes WHERE id = %s)
     """, quote_id)
 
-    return int(result['rank'])
+    return int(result['quote_rank'])
 
 
 async def get_quotes_for_rank(rank: int) -> List[Quote]:
