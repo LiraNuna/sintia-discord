@@ -1,11 +1,13 @@
 import re
 from datetime import datetime
-from typing import NamedTuple, Optional, Dict, List
+from typing import NamedTuple, Optional, Dict, List, Type, TypeVar
 
 import aiomysql
 
 from sintia.config import get_config_section
 from sintia.util import memoize
+
+T = TypeVar('T')
 
 
 class Quote(NamedTuple):
@@ -37,75 +39,88 @@ async def get_connection_pool():
     )
 
 
-async def query_single(query: str, *args) -> Optional[Dict]:
+async def query_single(query: str, *args, result_type: Type[T] = dict) -> Optional[T]:
     qdb_pool = await get_connection_pool()
     async with qdb_pool.acquire() as connection:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute(query, args)
-            return await cursor.fetchone()
+
+            row = await cursor.fetchone()
+            if not row:
+                return None
+
+            return result_type(**row)
 
 
-async def query_all(query: str, *args) -> Optional[List[Dict]]:
+async def query_all(query: str, *args, result_type: Type[T] = dict) -> List[T]:
     qdb_pool = await get_connection_pool()
     async with qdb_pool.acquire() as connection:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute(query, args)
-            return await cursor.fetchall()
+
+            return [result_type(**row) async for row in cursor]
 
 
 async def get_quote(id: int) -> Optional[Quote]:
-    quote = await query_single("SELECT * FROM quotes WHERE id = %s", id)
-    if not quote:
-        return None
-
-    return Quote(**quote)
+    return await query_single(
+        "SELECT * FROM quotes WHERE id = %s",
+        id,
+        result_type=Quote,
+    )
 
 
 async def get_random_quote() -> Quote:
-    quote = await query_single("SELECT * FROM quotes ORDER BY RAND() LIMIT 1")
-    return Quote(**quote)
+    return await query_single(
+        "SELECT * FROM quotes ORDER BY RAND() LIMIT 1",
+        result_type=Quote,
+    )
 
 
 async def get_latest_quote(containing: str = '') -> Optional[Quote]:
-    quote = await query_single("SELECT * FROM quotes WHERE quote LIKE %s ORDER BY id DESC LIMIT 1", f'%{containing}%')
-    if not quote:
-        return None
-
-    return Quote(**quote)
+    return await query_single(
+        "SELECT * FROM quotes WHERE quote LIKE %s ORDER BY id DESC LIMIT 1", f'%{containing}%',
+        result_type=Quote,
+    )
 
 
 async def get_best_quote() -> Quote:
-    quote = await query_single("SELECT * FROM quotes ORDER BY score DESC LIMIT 1")
-    return Quote(**quote)
+    return await query_single(
+        "SELECT * FROM quotes ORDER BY score DESC LIMIT 1",
+        result_type=Quote,
+    )
 
 
 async def get_quote_rank(quote_id: int) -> int:
-    result = await query_single("""
+    result = await query_single(
+        """
         SELECT COUNT(DISTINCT(score)) + 1 AS quote_rank
         FROM quotes
         WHERE score > (SELECT score FROM quotes WHERE id = %s)
-    """, quote_id)
+        """,
+        quote_id,
+    )
 
     return int(result['quote_rank'])
 
 
 async def get_quotes_for_rank(rank: int) -> List[Quote]:
-    quotes = await query_all("""
+    return await query_all(
+        """
         SELECT * FROM quotes WHERE score = (
             SELECT score FROM quotes GROUP BY score ORDER BY score DESC LIMIT %s,1
         ) ORDER BY id ASC
-    """, rank)
-
-    return [Quote(**quote) for quote in quotes]
+        """,
+        rank,
+        result_type=Quote,
+    )
 
 
 async def find_quotes_by_search_term(search_term: str) -> List[Quote]:
-    quotes = await query_all(
+    return await query_all(
         "SELECT * FROM quotes WHERE quote LIKE %s ORDER BY id ASC",
         f'%{search_term}%',
+        result_type=Quote,
     )
-
-    return [Quote(**quote) for quote in quotes]
 
 
 async def add_quote(creator: str, quote: str, addchannel: str) -> int:
