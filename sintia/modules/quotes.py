@@ -1,13 +1,8 @@
 import re
 from datetime import datetime
-from typing import NamedTuple, Optional, Dict, List, Type, TypeVar
+from typing import NamedTuple, Optional, List
 
-import aiomysql
-
-from sintia.config import get_config_section
-from sintia.util import memoize
-
-T = TypeVar('T')
+from sintia.mysql import query_single_commit, query_all, query_single
 
 
 class Quote(NamedTuple):
@@ -27,40 +22,6 @@ class Quote(NamedTuple):
         return quote
 
 
-@memoize
-async def get_connection_pool():
-    qdb_config = get_config_section('quotes')
-    return await aiomysql.create_pool(
-        host=qdb_config['hostname'],
-        port=qdb_config.getint('post', 3306),
-        user=qdb_config['username'],
-        password=qdb_config['password'],
-        db=qdb_config['database'],
-    )
-
-
-async def query_single(query: str, *args, result_type: Type[T] = dict) -> Optional[T]:
-    qdb_pool = await get_connection_pool()
-    async with qdb_pool.acquire() as connection:
-        async with connection.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute(query, args)
-
-            row = await cursor.fetchone()
-            if not row:
-                return None
-
-            return result_type(**row)
-
-
-async def query_all(query: str, *args, result_type: Type[T] = dict) -> List[T]:
-    qdb_pool = await get_connection_pool()
-    async with qdb_pool.acquire() as connection:
-        async with connection.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute(query, args)
-
-            return [result_type(**row) async for row in cursor]
-
-
 async def get_quote(id: int) -> Optional[Quote]:
     return await query_single(
         "SELECT * FROM quotes WHERE id = %s",
@@ -78,7 +39,8 @@ async def get_random_quote() -> Quote:
 
 async def get_latest_quote(containing: str = '') -> Optional[Quote]:
     return await query_single(
-        "SELECT * FROM quotes WHERE quote LIKE %s ORDER BY id DESC LIMIT 1", f'%{containing}%',
+        "SELECT * FROM quotes WHERE quote LIKE %s ORDER BY id DESC LIMIT 1",
+        f'%{containing}%',
         result_type=Quote,
     )
 
@@ -127,21 +89,13 @@ async def add_quote(creator: str, quote: str, addchannel: str) -> int:
     latest_quote = await get_latest_quote()
     new_quote_id = latest_quote.id + 1
 
-    qdb_pool = await get_connection_pool()
-    async with qdb_pool.acquire() as connection:
-        async with connection.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("""
-                INSERT INTO quotes (id, creator, quote, addchannel) VALUES (%s, %s, %s, %s)
-            """, (new_quote_id, creator, quote, addchannel))
-
-            await connection.commit()
+    await query_single_commit(
+        "INSERT INTO quotes (id, creator, quote, addchannel) VALUES (%s, %s, %s, %s)",
+        new_quote_id, creator, quote, addchannel,
+    )
 
     return new_quote_id
 
 
 async def modify_quote_score(quote_id: int, amount: int):
-    qdb_pool = await get_connection_pool()
-    async with qdb_pool.acquire() as connection:
-        async with connection.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("UPDATE quotes SET score = score + %s WHERE id = %s", (amount, quote_id))
-            await connection.commit()
+    await query_single_commit("UPDATE quotes SET score = score + %s WHERE id = %s", amount, quote_id)
