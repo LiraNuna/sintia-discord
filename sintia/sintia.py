@@ -13,6 +13,7 @@ import discord
 from sintia.config import get_config_section
 from sintia.modules import quotes, user_votes
 from sintia.modules import user_stats
+from sintia.modules.quotes import Quote
 from sintia.util import memoize
 from sintia.util import ordinal
 from sintia.util import plural
@@ -84,6 +85,12 @@ class Sintia(discord.Client):
             async with session.get(url) as response:
                 return await response.text()
 
+    def format_quote(self, quote: Quote) -> str:
+        return (
+            f'Quote **#{quote.id}** (rated {quote.score}):\n'
+            f'```{quote.multiline_quote()}```'
+        )
+
     @command_handler('q')
     async def read_quote(self, message: discord.Message, argument: str) -> None:
         # When no argument is given, we display a random quote
@@ -93,10 +100,7 @@ class Sintia(discord.Client):
                 quotes.get_latest_quote(),
             )
 
-            return await message.channel.send(
-                f'Quote **{quote.id}** of {latest_quote.id} (rated {quote.score}):\n'
-                f'```{quote.multiline_quote()}```',
-            )
+            return await message.channel.send(self.format_quote(quote))
 
         # Otherwise, we attempt to either show a quote with id if it's an integer
         if argument.isdigit():
@@ -108,10 +112,7 @@ class Sintia(discord.Client):
             if not quote:
                 await message.channel.send(f'Quote with id {argument} does not exist')
 
-            return await message.channel.send(
-                f'Quote **{quote.id}** of {latest_quote.id} (rated {quote.score}):\n'
-                f'```{quote.multiline_quote()}```',
-            )
+            return await message.channel.send(self.format_quote(quote))
 
         # If it's not a digit, it's treated as a search term
         return await self.find_quote(message, argument)
@@ -127,8 +128,7 @@ class Sintia(discord.Client):
 
         quote = search_results[random_quote_index]
         return await message.channel.send(
-            f'Result {random_quote_index + 1} of {total_results}: Quote **{quote.id}** (rated {quote.score}):\n'
-            f'```{quote.multiline_quote()}```',
+            f'Result {random_quote_index + 1} of {total_results}: {self.format_quote(quote)}'
         )
 
     @command_handler('lq')
@@ -141,20 +141,14 @@ class Sintia(discord.Client):
         if argument:
             extra_message = 'containing search term '
 
-        return await message.channel.send(
-            f'Latest quote {extra_message}(**{quote.id}**, rated {quote.score}):\n'
-            f'```{quote.multiline_quote()}```',
-        )
+        return await message.channel.send(f'Latest quote {extra_message}is {self.format_quote(quote)}')
 
     @command_handler('bq')
     async def best_quote(self, message: discord.Message, argument: str) -> None:
         # No param simply shows the best quote
         if not argument:
             quote = await quotes.get_best_quote()
-            return await message.channel.send(
-                f'The most popular quote is Quote **{quote.id}** (rated {quote.score}):\n'
-                f'```{quote.multiline_quote()}```',
-            )
+            return await message.channel.send(f'The most popular quote is {self.format_quote(quote)}')
 
         # Only digit arguments are understood as rank
         if not argument.isdigit():
@@ -167,14 +161,11 @@ class Sintia(discord.Client):
         quotes_for_rank = await quotes.get_quotes_for_rank(rank)
         if len(quotes_for_rank) == 1:
             quote = quotes_for_rank[0]
-            return await message.channel.send(
-                f'The {ordinal(rank)} most popular quote is Quote **{quote.id}** (rated {quote.score}):\n'
-                f'```{quote.multiline_quote()}```',
-            )
+            return await message.channel.send(f'The {ordinal(rank)} most popular quote is {self.format_quote(quote)}')
 
         await message.channel.send(f'Quotes sharing the {ordinal(rank)} rank (ranked {quotes_for_rank[0].score}):')
         for quote in quotes_for_rank:
-            await message.channel.send(f'Quote **{quote.id}**:\n```{quote.multiline_quote()}```')
+            await message.channel.send(self.format_quote(quote))
 
     @command_handler('iq')
     async def quote_info(self, message: discord.Message, argument: str) -> None:
@@ -190,7 +181,7 @@ class Sintia(discord.Client):
         if not quote:
             return await message.channel.send(f'Quote with id {argument} does not exist')
 
-        quote_info = f'Quote **{quote.id}** was added'
+        quote_info = f'Quote **#{quote.id}** was added'
         if quote.creator:
             quote_info += f' by {quote.creator}'
         if quote.addchannel:
@@ -210,7 +201,7 @@ class Sintia(discord.Client):
 
         self.record_action(message.author.id, 'quote.add')
         quote_id = await quotes.add_quote(message.author.display_name, argument, message.channel.name)
-        return await message.channel.send(f'Quote #{quote_id} has been added.')
+        return await message.channel.send(f'Quote **#{quote_id}** has been added.')
 
     @command_handler('+q')
     async def upvote_quote(self, message: discord.Message, argument: str) -> None:
@@ -475,3 +466,30 @@ class Sintia(discord.Client):
 
         if reaction.emoji == '🚫' and reaction.count >= 2:
             return await reaction.message.delete()
+
+        quote_id_matches = re.search(r'Quote \*\*#(?P<quote_id>\d+)\*\* \(rated -?\d+\)', reaction.message.content)
+        if quote_id_matches:
+            quote_id = int(quote_id_matches['quote_id'])
+            if self.is_rate_limited(user.id, 'quote.vote', quote_id):
+                return
+
+            if reaction.emoji == '👍':
+                self.record_action(user.id, 'quote.vote', quote_id)
+                return await quotes.modify_quote_score(quote_id, +1)
+            if reaction.emoji == '👎':
+                self.record_action(user.id, 'quote.vote', quote_id)
+                return await quotes.modify_quote_score(quote_id, -1)
+
+    async def on_reaction_remove(self, reaction: discord.Reaction, user: discord.User) -> None:
+        # Only care about reactions to own messages
+        if reaction.message.author != self.user:
+            return
+
+        quote_id_matches = re.search(r'Quote \*\*#(?P<quote_id>\d+)\*\* \(rated -?\d+\)', reaction.message.content)
+        if quote_id_matches:
+            quote_id = int(quote_id_matches['quote_id'])
+
+            if reaction.emoji == '👍':
+                return await quotes.modify_quote_score(quote_id, -1)
+            if reaction.emoji == '👎':
+                return await quotes.modify_quote_score(quote_id, +1)
