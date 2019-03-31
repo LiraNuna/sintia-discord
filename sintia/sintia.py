@@ -4,7 +4,7 @@ import random
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Dict, Callable, Any, Union, MutableMapping
+from typing import Dict, Callable, Any, Union, MutableMapping, Awaitable
 from urllib.parse import urlencode
 
 import aiohttp
@@ -19,24 +19,26 @@ from sintia.util import ordinal
 from sintia.util import plural
 from sintia.util import readable_timedelta
 
+Callback = Callable[[discord.Client, discord.Message, str], Awaitable[None]]
+
 
 class CommandProcessor:
     prefix: str
-    commands: Dict[str, Callable]
+    commands: Dict[str, Callback]
 
     def __init__(self, *, prefix: str) -> None:
         self.prefix = prefix
         self.commands = {}
 
     def __call__(self, command: str):
-        def decorator(func: Callable) -> Callable:
+        def decorator(func: Callback) -> Callback:
             self.commands[self.prefix + command] = func
 
             return func
 
         return decorator
 
-    async def process_message(self, instance: Any, message: discord.Message) -> None:
+    async def process_message(self, instance: discord.Client, message: discord.Message) -> None:
         trigger, _, argument = message.clean_content.partition(' ')
         if trigger not in self.commands:
             return
