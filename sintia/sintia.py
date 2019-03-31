@@ -219,10 +219,8 @@ class Sintia(discord.Client):
             return
 
         self.record_action(message.author.id, 'quote.vote', quote_id)
-        return await asyncio.gather(
-            quotes.modify_quote_score(quote.id, +1),
-            message.channel.send(f'Popularity of quote {quote.id} has increased.'),
-        )
+        await quotes.modify_quote_score(quote.id, +1)
+        return await message.channel.send(f'Popularity of quote {quote.id} has increased.')
 
     @command_handler('-q')
     async def downvote_quote(self, message: discord.Message, argument: str) -> None:
@@ -238,10 +236,8 @@ class Sintia(discord.Client):
             return
 
         self.record_action(message.author.id, 'quote.vote', quote_id)
-        return await asyncio.gather(
-            quotes.modify_quote_score(quote.id, -1),
-            message.channel.send(f'Popularity of quote {quote.id} has decreased.'),
-        )
+        await quotes.modify_quote_score(quote.id, -1),
+        return await message.channel.send(f'Popularity of quote {quote.id} has decreased.')
 
     @command_handler('g')
     async def google_search(self, message: discord.Message, argument: str) -> None:
