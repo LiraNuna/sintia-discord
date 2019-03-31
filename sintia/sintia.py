@@ -291,11 +291,11 @@ class Sintia(discord.Client):
         return await message.channel.send(search_result["link"])
 
     @command_handler('gif')
-    async def google_gif_search(self, message: discord.Message , argument: str) -> None:
+    async def google_gif_search(self, message: discord.Message, argument: str) -> None:
         return await self.google_image_search(message, argument + ' filetype:gif')
 
     @command_handler('yt')
-    async def youtube_search(self, message: discord.Message , argument: str) -> None:
+    async def youtube_search(self, message: discord.Message, argument: str) -> None:
         if not argument:
             return
 
