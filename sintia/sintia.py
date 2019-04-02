@@ -4,8 +4,7 @@ import random
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Dict, Callable, Any, Union, MutableMapping, Awaitable
-from urllib.parse import urlencode
+from typing import Dict, Callable, Union, MutableMapping, Awaitable, Optional
 
 import aiohttp
 import discord
@@ -82,9 +81,9 @@ class Sintia(discord.Client):
         duration = timedelta(seconds=rate_limit_config.getint(action))
         return rate_limits[user_id] + duration > datetime.now()
 
-    async def http_get_request(self, url: str) -> str:
+    async def http_get_request(self, url: str, *, params: Optional[Dict[str, str]] = None) -> str:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
+            async with session.get(url, params=params) as response:
                 return await response.text()
 
     def format_quote(self, quote: Quote) -> str:
@@ -245,12 +244,12 @@ class Sintia(discord.Client):
             return
 
         google_config = get_config_section('search.google')
-        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
+        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1', params={
             'q': argument,
             'key': google_config['api_key'],
             'cx': google_config['search_engine_id'],
             'num': '1',
-        }))
+        })
 
         json_results = json.loads(results)
         search_result, *rest = json_results.get('items', [None])
@@ -270,14 +269,14 @@ class Sintia(discord.Client):
             return
 
         google_config = get_config_section('search.google')
-        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1?' + urlencode({
+        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1', params={
             'q': argument,
             'searchType': 'image',
             'key': google_config['api_key'],
             'cx': google_config['search_engine_id'],
             'safe': 'off' if message.channel.is_nsfw() else 'active',
             'num': '1',
-        }))
+        })
 
         json_results = json.loads(results)
         search_result, *rest = json_results.get('items', [None])
@@ -296,13 +295,13 @@ class Sintia(discord.Client):
             return
 
         youtube_config = get_config_section('search.youtube')
-        results = await self.http_get_request('https://www.googleapis.com/youtube/v3/search?' + urlencode({
+        results = await self.http_get_request('https://www.googleapis.com/youtube/v3/search', params={
             'q': argument,
             'part': 'id',
             'type': 'video',
             'key': youtube_config['api_key'],
             'maxResults': '1',
-        }))
+        })
 
         json_results = json.loads(results)
         search_result, *rest = json_results.get('items', [None])
@@ -316,7 +315,7 @@ class Sintia(discord.Client):
         if not argument:
             return
 
-        raw_search_results = await self.http_get_request('https://en.wikipedia.org/w/api.php?' + urlencode({
+        raw_search_results = await self.http_get_request('https://en.wikipedia.org/w/api.php', params={
             'action': 'query',
             'format': 'json',
             'prop': 'extracts|info',
@@ -328,7 +327,7 @@ class Sintia(discord.Client):
             'inprop': 'url',
             'gsrsearch': argument,
             'gsrlimit': 1,
-        }))
+        })
 
         search_results = json.loads(raw_search_results)
         page_ids = search_results['query']['pageids']
@@ -350,9 +349,9 @@ class Sintia(discord.Client):
         if not argument:
             return
 
-        raw_search_results = await self.http_get_request('http://api.urbandictionary.com/v0/define?' + urlencode({
+        raw_search_results = await self.http_get_request('http://api.urbandictionary.com/v0/define', params={
             'term': argument,
-        }))
+        })
 
         search_results = json.loads(raw_search_results)
         if not search_results['list']:
