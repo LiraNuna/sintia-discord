@@ -164,8 +164,10 @@ class Sintia(discord.Client):
             quote = quotes_for_rank[0]
             return await message.channel.send(f'The {ordinal(rank)} most popular quote is {self.format_quote(quote)}')
 
-        await message.channel.send(f'Quotes sharing the {ordinal(rank)} rank (ranked {quotes_for_rank[0].score}):')
-        for quote in quotes_for_rank:
+        score = quotes_for_rank[0].score
+        quotes_to_show = min(3, len(quotes_for_rank))
+        await message.channel.send(f'{quotes_to_show} quotes sharing the {ordinal(rank)} rank ({score} votes):')
+        for quote in quotes_for_rank[:quotes_to_show]:
             await message.channel.send(self.format_quote(quote))
 
     @command_handler('iq')
