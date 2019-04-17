@@ -16,6 +16,16 @@ async def record_message(message: discord.Message) -> None:
     )
 
 
+async def record_command(message: discord.Message, command: str) -> None:
+    await query_single_commit(
+        """
+        INSERT INTO command_activity_history (invoked_at, guild_id, channel_id, user_id, command)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        message.created_at, message.guild.id, message.channel.id, message.author.id, command,
+    )
+
+
 async def get_user_last_spoke(user: discord.User, guild: discord.Guild) -> datetime:
     row = await query_single(
         """
