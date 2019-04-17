@@ -43,7 +43,10 @@ class CommandProcessor:
             return
 
         trigger_handler = self.commands[trigger]
-        return await trigger_handler(instance, message, argument.strip())
+        await asyncio.gather(
+            trigger_handler(instance, message, argument.strip()),
+            user_stats.record_command(message, trigger),
+        )
 
 
 class Sintia(discord.Client):
