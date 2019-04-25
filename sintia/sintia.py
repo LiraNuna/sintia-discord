@@ -323,7 +323,7 @@ class Sintia(discord.Client):
         raw_search_results = await self.http_get_request('https://en.wikipedia.org/w/api.php', params={
             'action': 'query',
             'format': 'json',
-            'prop': 'extracts|info',
+            'prop': 'extracts|info|pageimages',
             'indexpageids': 1,
             'generator': 'search',
             'utf8': 1,
@@ -332,22 +332,27 @@ class Sintia(discord.Client):
             'inprop': 'url',
             'gsrsearch': argument,
             'gsrlimit': 1,
+            'pithumbsize': 1024,
         })
 
         search_results = json.loads(raw_search_results)
-        page_ids = search_results['query']['pageids']
-        if not page_ids:
+        if 'query' not in search_results:
             return await message.channel.send(f'No results found for `{argument}`')
 
-        page_id, *rest = page_ids
+        page_id, *rest = search_results['query']['pageids']
         page_info = search_results['query']['pages'][page_id]
         paragraphs = page_info['extract'].split('\n')
-        return await message.channel.send(
-            f'**{page_info["title"]}**\n'
-            f'<{page_info["canonicalurl"]}>'
-            f'\n'
-            f'{paragraphs[0]}\n',
+
+        embed = discord.Embed(
+            title=page_info['title'],
+            description=paragraphs[0],
+            url=page_info['canonicalurl'],
         )
+
+        if 'thumbnail' in page_info:
+            embed.set_thumbnail(url=page_info['thumbnail'].get('source'))
+
+        return await message.channel.send(embed=embed)
 
     @command_handler('ud')
     async def urbandictionary_search(self, message: discord.Message, argument: str) -> None:
