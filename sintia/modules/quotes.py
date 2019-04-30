@@ -14,6 +14,11 @@ class Quote(NamedTuple):
     addchannel: str
 
     def multiline_quote(self) -> str:
+        # It's possible to add multiline quotes. If there is a multiline character in the quote,
+        # assume it's already formatted well
+        if '\n' in self.quote:
+            return self.quote
+
         nick_regex = '[a-zA-Z0-9`_\-|@+^[\]]*'
 
         quote = self.quote
