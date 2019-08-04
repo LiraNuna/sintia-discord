@@ -452,6 +452,21 @@ class Sintia(discord.Client):
         await user_votes.add_votes(message, aggregated_votes)
         return await message.add_reaction('✅')
 
+    @command_handler('metar')
+    async def metar(self, message: discord.Message, argument: str) -> None:
+        if not argument:
+            return
+
+        results = await self.http_get_request(f'https://avwx.rest/api/metar/{argument}', params={
+            'format': 'json',
+        })
+
+        json_results = json.loads(results)
+        if 'error' in json_results:
+            return await message.channel.send(f'```{json_results["error"]}```')
+
+        return await message.channel.send(f'```{json_results["raw"]}```')
+
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
