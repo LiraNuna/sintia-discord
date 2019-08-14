@@ -3,8 +3,8 @@ import json
 import random
 import re
 from collections import defaultdict
-from datetime import datetime, timedelta
-from typing import Dict, Callable, Union, MutableMapping, Awaitable, Optional
+from datetime import datetime, timedelta, date
+from typing import Dict, Callable, Union, MutableMapping, Awaitable, Optional, List
 
 import aiohttp
 import discord
@@ -12,6 +12,7 @@ import discord
 from sintia.config import get_config_section
 from sintia.modules import quotes, user_votes
 from sintia.modules import user_stats
+from sintia.modules.irc_bridge import IrcBridge
 from sintia.modules.quotes import Quote
 from sintia.util import memoize
 from sintia.util import ordinal
@@ -19,7 +20,7 @@ from sintia.util import plural
 from sintia.util import readable_timedelta
 
 Callback = Callable[[discord.Client, discord.Message, str], Awaitable[None]]
-
+MessageListener = Callable[[discord.Client, discord.Message], Awaitable[None]]
 
 class CommandProcessor:
     prefix: str
@@ -53,6 +54,8 @@ class CommandProcessor:
 class Sintia(discord.Client):
     command_handler: CommandProcessor = CommandProcessor(prefix='!')
 
+    message_listeners: List[MessageListener]
+
     def __init__(self, *, loop=None, **options):
         discord_config = get_config_section('discord')
 
@@ -63,10 +66,15 @@ class Sintia(discord.Client):
             **options,
         )
 
+        self.message_listeners = []
+
     def run(self):
         discord_config = get_config_section('discord')
 
         super().run(discord_config['token'])
+
+    def add_message_listener(self, listener: MessageListener) -> None:
+        self.message_listeners.append(listener)
 
     @memoize
     def get_rate_limits(self, action: str, *sections: Union[str, int]) -> Dict[int, datetime]:
@@ -639,15 +647,18 @@ class Sintia(discord.Client):
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
+        self.irc_bridge = IrcBridge(self, 'irc.bridge')
+
     async def on_message(self, message: discord.Message) -> None:
         # Avoid replying to self
-        if message.author == self.user:
-            return
+        # if message.author == self.user:
+        #     return
 
         await asyncio.gather(
             self.vote_handler(message),
             user_stats.record_message(message),
             self.command_handler.process_message(self, message),
+            *[listener(self, message) for listener in self.message_listeners],
         )
 
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User) -> None:
