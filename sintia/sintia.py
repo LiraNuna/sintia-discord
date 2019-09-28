@@ -495,10 +495,10 @@ class Sintia(discord.Client):
             if self.is_rate_limited(user.id, 'quote.vote', quote_id):
                 return
 
-            if reaction.emoji == '👍':
+            if '👍' in reaction.emoji:
                 self.record_action(user.id, 'quote.vote', quote_id)
                 return await quotes.modify_quote_score(quote_id, +1)
-            if reaction.emoji == '👎':
+            if '👎' in reaction.emoji:
                 self.record_action(user.id, 'quote.vote', quote_id)
                 return await quotes.modify_quote_score(quote_id, -1)
 
@@ -511,7 +511,7 @@ class Sintia(discord.Client):
         if quote_id_matches:
             quote_id = int(quote_id_matches['quote_id'])
 
-            if reaction.emoji == '👍':
+            if '👍' in reaction.emoji:
                 return await quotes.modify_quote_score(quote_id, -1)
-            if reaction.emoji == '👎':
+            if '👎' in reaction.emoji:
                 return await quotes.modify_quote_score(quote_id, +1)
