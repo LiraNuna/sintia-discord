@@ -488,6 +488,43 @@ class Sintia(discord.Client):
 
         return await message.channel.send(f'```{json_results["raw"]}```')
 
+    @command_handler('conv')
+    @command_handler('convert')
+    async def convert(self, message: discord.Message, argument: str) -> None:
+        aliases = {
+            'inches': 'inch',
+            'cm': 'centimeter',
+            'centimeters': 'centimeter',
+            'ft': 'feet',
+        }
+
+        conversions = {
+            'feet': {
+                'centimeter': lambda ft: ft * 30.48,
+                'inch': lambda inch: inch * 12.0,
+            },
+            'inch': {
+                'centimeter': lambda inch: inch * 2.54,
+                'feet': lambda ft: ft / 12.0,
+            },
+            'centimeter': {
+                'inch': lambda cm: cm / 2.54,
+                'feet': lambda ft: ft / 30.48,
+            },
+        }
+
+        try:
+            left, to_unit = re.split(r'\s+(?:to|in)\s+', argument, maxsplit=1)
+            unit, from_unit = filter(None, re.split(r'(\d+)\s*', left))
+
+            to_unit = aliases.get(to_unit, to_unit)
+            from_unit = aliases.get(from_unit, from_unit)
+            return await message.channel.send(
+                f'{unit} {from_unit} = {conversions[from_unit][to_unit](float(unit)):.2f} {to_unit}',
+            )
+        except (KeyError, ValueError):
+            return await message.add_reaction('❓')
+
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
