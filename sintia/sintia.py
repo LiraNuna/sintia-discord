@@ -478,8 +478,10 @@ class Sintia(discord.Client):
         if not argument:
             return
 
+        avwx_config = get_config_section('search.avwx')
         results = await self.http_get_request(f'https://avwx.rest/api/metar/{argument}', params={
             'format': 'json',
+            'token': avwx_config['api_key']
         })
 
         json_results = json.loads(results)
