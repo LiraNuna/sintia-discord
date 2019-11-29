@@ -502,15 +502,15 @@ class Sintia(discord.Client):
 
         conversions = {
             'feet': {
-                'centimeter': lambda ft: ft * 30.48,
+                'centimeter': lambda cm: cm * 30.48,
                 'inch': lambda inch: inch * 12.0,
             },
             'inch': {
-                'centimeter': lambda inch: inch * 2.54,
+                'centimeter': lambda cm: cm * 2.54,
                 'feet': lambda ft: ft / 12.0,
             },
             'centimeter': {
-                'inch': lambda cm: cm / 2.54,
+                'inch': lambda inch: inch / 2.54,
                 'feet': lambda ft: ft / 30.48,
             },
         }
