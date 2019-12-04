@@ -498,20 +498,35 @@ class Sintia(discord.Client):
             'cm': 'centimeter',
             'centimeters': 'centimeter',
             'ft': 'feet',
+			'c': 'celsius',
+			'f': 'fahrenheit',
+			'k': 'kelvin',
         }
 
         conversions = {
             'feet': {
-                'centimeter': lambda cm: cm * 30.48,
+                'centimeter': lambda ft: ft * 30.48,
                 'inch': lambda inch: inch * 12.0,
             },
             'inch': {
-                'centimeter': lambda cm: cm * 2.54,
+                'centimeter': lambda inch: inch * 2.54,
                 'feet': lambda ft: ft / 12.0,
             },
             'centimeter': {
-                'inch': lambda inch: inch / 2.54,
+                'inch': lambda cm: cm / 2.54,
                 'feet': lambda ft: ft / 30.48,
+            },
+            'fahrenheit': {
+                'celsius': lambda c: (c - 32) * 5 / 9,
+                'kelvin': lambda k: (k - 32) * 5 / 9 + 273.15,
+            },
+			'celsius': {
+                'fahrenheit': lambda f: (f * 9 / 5) + 32,
+                'kelvin': lambda k: k + 273.15,
+            },
+			'kelvin': {
+                'fahrenheit': lambda f: (f - 273.15) * 9 / 5 + 32,
+                'celsius': lambda c: c - 273.15,
             },
         }
 
