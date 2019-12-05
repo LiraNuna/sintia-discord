@@ -536,7 +536,6 @@ class Sintia(discord.Client):
             'kilometers': {
                 'miles': lambda mi: mi / 1.609344,
             },
-
         }
 
         try:
