@@ -535,7 +535,9 @@ class Sintia(discord.Client):
             },
             'kilometers': {
                 'miles': lambda mi: mi / 1.609344,
-        },
+            },
+
+        }
 
         try:
             left, to_unit = re.split(r'\s+(?:to|in)\s+', argument, maxsplit=1)
