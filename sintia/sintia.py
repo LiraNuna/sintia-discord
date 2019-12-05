@@ -501,6 +501,8 @@ class Sintia(discord.Client):
             'c': 'celsius',
             'f': 'fahrenheit',
             'k': 'kelvin',
+            'mi': 'miles',
+            'km': 'kilometers',
         }
 
         conversions = {
@@ -520,14 +522,19 @@ class Sintia(discord.Client):
                 'celsius': lambda c: (c - 32) * 5 / 9,
                 'kelvin': lambda k: (k - 32) * 5 / 9 + 273.15,
             },
-			'celsius': {
+            'celsius': {
                 'fahrenheit': lambda f: (f * 9 / 5) + 32,
                 'kelvin': lambda k: k + 273.15,
             },
-			'kelvin': {
+            'kelvin': {
                 'fahrenheit': lambda f: (f - 273.15) * 9 / 5 + 32,
                 'celsius': lambda c: c - 273.15,
             },
+             'miles': {
+                'kilometers': lambda km: km * 1.609344,
+            },
+             'kilometers': {
+                'miles': lambda mi: mi / 1.609344,
         }
 
         try:
