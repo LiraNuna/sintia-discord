@@ -503,6 +503,8 @@ class Sintia(discord.Client):
             'k': 'kelvin',
             'mi': 'miles',
             'km': 'kilometers',
+            'lbs': 'pounds',
+            'kg': 'kilograms',
         }
 
         conversions = {
@@ -535,6 +537,12 @@ class Sintia(discord.Client):
             },
             'kilometers': {
                 'miles': lambda mi: mi / 1.609344,
+            },
+            'pounds': {
+                'kilograms': lambda kg: kg * 2.2046226218,
+            },
+            'kilograms': {
+                'pounds': lambda lbs: lbs / 2.2046226218,
             },
         }
 
