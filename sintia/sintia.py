@@ -530,10 +530,10 @@ class Sintia(discord.Client):
                 'fahrenheit': lambda f: (f - 273.15) * 9 / 5 + 32,
                 'celsius': lambda c: c - 273.15,
             },
-             'miles': {
+            'miles': {
                 'kilometers': lambda km: km * 1.609344,
             },
-             'kilometers': {
+            'kilometers': {
                 'miles': lambda mi: mi / 1.609344,
         }
 
