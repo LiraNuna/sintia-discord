@@ -510,15 +510,16 @@ class Sintia(discord.Client):
             'hPa': 'hectopascal',
             'inHg': 'inch of mercury',
             'inHg': 'inches of mercury',
-            'inHg': 'inhg'
-            'hPa': 'hpa'
+            'inHg': 'inhg',
+            'hPa': 'hpa',
+            'hPa': 'pascals',
         }
 
         conversions = {
             'feet': {
                 'centimeter': lambda ft: ft * 30.48,
                 'inch': lambda inch: inch * 12.0,
-                'meters': lambda meters / 3.2808,
+                'meters': lambda meters: / 3.2808,
             },
             'inch': {
                 'centimeter': lambda inch: inch * 2.54,
