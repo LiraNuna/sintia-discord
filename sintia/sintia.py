@@ -506,20 +506,29 @@ class Sintia(discord.Client):
             'lbs': 'pounds',
             'kg': 'kilograms',
             'g': 'grams',
+            'm': 'meters',
+            'hectopascal': 'hPa',
+            'inch of mercury': 'inHg',
+            'inches of mercury': 'inHg',
+            'inhg': 'inHg',
+            'hpa': 'hPa',
         }
 
         conversions = {
             'feet': {
                 'centimeter': lambda ft: ft * 30.48,
                 'inch': lambda inch: inch * 12.0,
+                'meters': lambda m: m / 3.2808,
             },
             'inch': {
                 'centimeter': lambda inch: inch * 2.54,
                 'feet': lambda ft: ft / 12.0,
+                'meters': lambda m: m / 39.37,
             },
             'centimeter': {
                 'inch': lambda cm: cm / 2.54,
                 'feet': lambda ft: ft / 30.48,
+                'meters': lambda m: m / 100,
             },
             'fahrenheit': {
                 'celsius': lambda c: (c - 32) * 5 / 9,
@@ -535,9 +544,11 @@ class Sintia(discord.Client):
             },
             'miles': {
                 'kilometers': lambda km: km * 1.609344,
+                'meters': lambda m: m * 1609.344,
             },
             'kilometers': {
                 'miles': lambda mi: mi / 1.609344,
+                'meters': lambda m: m * 1000,
             },
             'pounds': {
                 'kilograms': lambda kg: kg / 2.2046226218,
@@ -550,6 +561,12 @@ class Sintia(discord.Client):
             'grams': {
                 'pounds': lambda lbs: lbs * 453.59237,
                 'kilograms': lambda kg: kg / 1000,
+            },
+            'inHg': {
+                'hPa': lambda hPa: hPa * 33.8639,
+            },
+            'hPa': {
+                'inHg': lambda inHg: inHg / 33.8639,
             },
         }
 
