@@ -507,12 +507,11 @@ class Sintia(discord.Client):
             'kg': 'kilograms',
             'g': 'grams',
             'm': 'meters',
-            'hPa': 'hectopascal',
-            'inHg': 'inch of mercury',
-            'inHg': 'inches of mercury',
-            'inHg': 'inhg',
-            'hPa': 'hpa',
-            'hPa': 'pascals',
+            'hectopascal': 'hPa',
+            'inch of mercury': 'inHg',
+            'inches of mercury': 'inHg',
+            'inhg': 'inHg',
+            'hpa': 'hPa',
         }
 
         conversions = {
