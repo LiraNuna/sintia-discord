@@ -577,7 +577,7 @@ class Sintia(discord.Client):
             to_unit = aliases.get(to_unit, to_unit)
             from_unit = aliases.get(from_unit, from_unit)
             return await message.channel.send(
-                f'{unit} {from_unit} = {conversions[from_unit][to_unit](float(unit)):.2f} {to_unit}',
+                f'{unit} {from_unit} = {conversions[from_unit][to_unit](float(unit)):.2g} {to_unit}',
             )
         except (KeyError, ValueError):
             return await message.add_reaction('❓')
