@@ -572,7 +572,7 @@ class Sintia(discord.Client):
 
         try:
             left, to_unit = re.split(r'\s+(?:to|in)\s+', argument, maxsplit=1)
-            unit, from_unit = filter(None, re.split(r'(\-?\d+)\s*', left))
+            unit, from_unit = filter(None, re.split(r'(\-?\d+(?:\.?\d+))\s*', left))
 
             to_unit = aliases.get(to_unit, to_unit)
             from_unit = aliases.get(from_unit, from_unit)
