@@ -540,12 +540,12 @@ class Sintia(discord.Client):
                 'miles': lambda mi: mi / 1.609344,
             },
             'pounds': {
-                'kilograms': lambda kg: kg * 2.2046226218,
+                'kilograms': lambda kg: kg / 2.2046226218,
                 'grams': lambda g: g / 0.0022046,
             },
             'kilograms': {
-                'pounds': lambda lbs: lbs / 2.2046226218,
-                'grams": lambda g: g * 1000,
+                'pounds': lambda lbs: lbs * 2.2046226218,
+                'grams': lambda g: g * 1000,
             },
             'grams': {
                 'pounds': lambda lbs: lbs * 453.59237,
