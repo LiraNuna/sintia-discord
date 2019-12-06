@@ -505,20 +505,30 @@ class Sintia(discord.Client):
             'km': 'kilometers',
             'lbs': 'pounds',
             'kg': 'kilograms',
+            'g': 'grams',
+            'm': 'meters',
+            'hPa': 'hectopascal',
+            'inHg': 'inch of mercury',
+            'inHg': 'inches of mercury',
+            'inHg': 'inhg'
+            'hPa': 'hpa'
         }
 
         conversions = {
             'feet': {
                 'centimeter': lambda ft: ft * 30.48,
                 'inch': lambda inch: inch * 12.0,
+                'meters': lambda meters / 3.2808,
             },
             'inch': {
                 'centimeter': lambda inch: inch * 2.54,
                 'feet': lambda ft: ft / 12.0,
+                'meters': lambda m: m / 39.37,
             },
             'centimeter': {
                 'inch': lambda cm: cm / 2.54,
                 'feet': lambda ft: ft / 30.48,
+                'meters': lambda m: m / 100,
             },
             'fahrenheit': {
                 'celsius': lambda c: (c - 32) * 5 / 9,
@@ -534,15 +544,29 @@ class Sintia(discord.Client):
             },
             'miles': {
                 'kilometers': lambda km: km * 1.609344,
+                'meters': lambda m: m * 1609.344,
             },
             'kilometers': {
                 'miles': lambda mi: mi / 1.609344,
+                'meters': lambda m: m * 1000,
             },
             'pounds': {
                 'kilograms': lambda kg: kg / 2.2046226218,
+                'grams': lambda g: g * 453.59237,
             },
             'kilograms': {
                 'pounds': lambda lbs: lbs * 2.2046226218,
+                'grams": lambda g: g * 1000,
+            },
+            'grams': {
+                'pounds': lambda lbs: lbs / 0.0022046,
+                'kilograms': lambda kg: kg / 1000,
+            },
+            'inHg': {
+                'hPa': lambda hPa: hPa * 3.38639,
+            },
+            'hPa': {
+                'inHg': lambda inHg: inHg / 3.38639,
             },
         }
 
@@ -553,7 +577,7 @@ class Sintia(discord.Client):
             to_unit = aliases.get(to_unit, to_unit)
             from_unit = aliases.get(from_unit, from_unit)
             return await message.channel.send(
-                f'{unit} {from_unit} = {conversions[from_unit][to_unit](float(unit)):.2g} {to_unit}',
+                f'{unit} {from_unit} = {conversions[from_unit][to_unit](float(unit)):.2f} {to_unit}',
             )
         except (KeyError, ValueError):
             return await message.add_reaction('❓')
