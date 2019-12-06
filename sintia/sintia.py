@@ -552,7 +552,7 @@ class Sintia(discord.Client):
             },
             'pounds': {
                 'kilograms': lambda kg: kg / 2.2046226218,
-                'grams': lambda g: g * 453.59237,
+                'grams': lambda g: g / 0.0022046,
             },
             'kilograms': {
                 'pounds': lambda lbs: lbs * 2.2046226218,
