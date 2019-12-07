@@ -568,6 +568,13 @@ class Sintia(discord.Client):
             'hPa': {
                 'inHg': lambda inHg: inHg / 33.8639,
             },
+            'meters': {
+                'centimeter': lambda cm: cm * 100,
+                'inch': lambda in: in * 39.37,
+                'feet': lambda ft: ft * 3.2808,
+                'miles': lambda mi: mi * 0.00062137,
+                'kilometers': lambda km: km / 1000,
+            },
         }
 
         try:
