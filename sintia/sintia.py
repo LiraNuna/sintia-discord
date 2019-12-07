@@ -570,7 +570,7 @@ class Sintia(discord.Client):
             },
             'meters': {
                 'centimeter': lambda cm: cm * 100,
-                'inch': lambda in: in * 39.37,
+                'inch': lambda inch: inch * 39.37,
                 'feet': lambda ft: ft * 3.2808,
                 'miles': lambda mi: mi * 0.00062137,
                 'kilometers': lambda km: km / 1000,
