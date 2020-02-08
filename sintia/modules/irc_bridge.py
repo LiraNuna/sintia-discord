@@ -80,7 +80,17 @@ class IrcBridge(pydle.Client):
             message,
         )
 
-        await self.discord_channel.send(f'<**{source}**> {message}')
+        # XXX: this redefines a forwarder to a Sintia, which definitely
+        # cracks an abstraction here, but life is just too short.  It turns
+        # out that process_discord_message already busts this abstraction by
+        # transmuting instance: discord.Client to the `self` parameter in
+        # the @command_handlers, so I guess I don't really feel too bad
+        # about doing this the second time.  It's not like we're building
+        # with mypy, anyway...
+        await asyncio.gather(
+            self.discord_channel.send(f'<**{source}**> {message}'),
+            self.forwarder.command_handler.process_irc_message(self.forwarder, self, self.discord_channel, source, message)
+        )
 
     async def on_discord_message(self, client: discord.Client, message: discord.Message) -> None:
         if not self.connected:
@@ -95,6 +105,14 @@ class IrcBridge(pydle.Client):
             f'<\x02{message.author.display_name}\x02> {line}'
             for line in full_message.split('\n')
         ))
+
+    async def reply(self, channel: discord.TextChannel, s: str) -> None:
+        if not self.connected:
+            return
+        if channel != self.discord_channel:
+            return
+
+        await self.message(self.config['irc_channel'], s)
 
     async def on_ctcp_action(self, source: str, target: str, message: str) -> None:
         if source == self.nickname:
