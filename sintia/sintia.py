@@ -253,6 +253,7 @@ class Sintia(discord.Client):
             'q': argument,
             'key': google_config['api_key'],
             'cx': google_config['search_engine_id'],
+            'safe': 'off' if message.channel.is_nsfw() else 'active',
             'num': '1',
         })
 
