@@ -491,6 +491,32 @@ class Sintia(discord.Client):
 
         return await message.channel.send(f'```{json_results["raw"]}```')
 
+    @command_handler('roll')
+    async def roll(self, message: discord.Message, argument: str) -> None:
+        def limit(value: Union[int, str], min: int, max: int) -> int:
+            value = int(value)
+            if value > max:
+                raise ValueError("Too big")
+            if value < min:
+                raise ValueError("Too small")
+
+            return value
+
+        rolls = []
+        try:
+            for dice_groups in re.split(r'\s+', argument):
+                count, _, dice_size = dice_groups.partition('d')
+                count = count or 1
+
+                rolls.extend(random.randint(1, limit(dice_size, 1, 99)) for _ in range(limit(count, 1, 99)))
+        except (KeyError, ValueError):
+            return await message.add_reaction('❓')
+
+        if len(rolls) == 1 or len(rolls) > 8:
+            return await message.channel.send(f'Rolled **{argument}**: {sum(rolls)}')
+
+        return await message.channel.send(f'Rolled **{argument}**: {" + ".join(map(str, rolls))} = {sum(rolls)}')
+
     @command_handler('conv')
     @command_handler('convert')
     async def convert(self, message: discord.Message, argument: str) -> None:
