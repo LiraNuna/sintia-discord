@@ -454,6 +454,7 @@ class Sintia(discord.Client):
         return await message.add_reaction('✅')
 
     @command_handler('stock')
+    @command_handler('stonks')
     async def stock(self, message: discord.Message, argument: str) -> None:
         if not argument:
             return
