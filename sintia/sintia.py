@@ -29,9 +29,10 @@ class CommandProcessor:
         self.prefix = prefix
         self.commands = {}
 
-    def __call__(self, command: str):
+    def __call__(self, *commands: str):
         def decorator(func: Callback) -> Callback:
-            self.commands[self.prefix + command] = func
+            for command in commands:
+                self.commands[self.prefix + command] = func
 
             return func
 
@@ -453,8 +454,7 @@ class Sintia(discord.Client):
         await user_votes.add_votes(message, aggregated_votes)
         return await message.add_reaction('✅')
 
-    @command_handler('stock')
-    @command_handler('stonks')
+    @command_handler('stock', 'stonks')
     async def stock(self, message: discord.Message, argument: str) -> None:
         if not argument:
             return
@@ -518,8 +518,7 @@ class Sintia(discord.Client):
 
         return await message.channel.send(f'Rolled **{argument}**: {" + ".join(map(str, rolls))} = {sum(rolls)}')
 
-    @command_handler('conv')
-    @command_handler('convert')
+    @command_handler('conv', 'convert')
     async def convert(self, message: discord.Message, argument: str) -> None:
         aliases = {
             'inches': 'inch',
