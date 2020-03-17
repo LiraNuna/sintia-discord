@@ -22,47 +22,49 @@ from sintia.util import readable_timedelta
 Callback = Callable[[discord.Client, discord.Message, str], Awaitable[None]]
 MessageListener = Callable[[discord.Client, discord.Message], Awaitable[None]]
 
+
 class GenChannel:
     """
     A generic channel that wraps both an IRC channel and its paired Discord
     channel.
     """
-    
+
     discord_channel: discord.TextChannel
     irc_bridge: IrcBridge
-    
+
     def __init__(self, discord_channel, irc_bridge):
         self.irc_bridge = irc_bridge
         self.discord_channel = discord_channel
-    
+
     @property
     def name(self):
         return self.discord_channel.name
-    
+
     def is_nsfw(self):
         return self.discord_channel.is_nsfw()
-    
+
     async def send(self, s):
         await asyncio.gather(
-            self.irc_bridge.reply(discord_channel, s),
-            self.channel.send(s)
+            self.irc_bridge.reply(self.discord_channel, s),
+            self.discord_channel.send(s)
         )
+
 
 class GenUser:
     """
     Something that could be either a Discord user, or an IRC user.
     """
-    
+
     id: int
     display_name: str
     bot: bool
     mention: str
-    
+
     # XXX: implement equality some day
-    
-    def __init__(self, irc_user = None, discord_user = None):
+
+    def __init__(self, irc_user=None, discord_user=None):
         if irc_user:
-            self.id = hash(irc_user % 0xFFFFFFFF)
+            self.id = hash(irc_user)
             self.display_name = irc_user
             self.bot = False
             self.mention = irc_user
@@ -72,6 +74,7 @@ class GenUser:
             self.bot = discord_user.bot
             self.mention = discord_user.mention
 
+
 class GenMessage:
     """
     A generic message that represents either a message that came from IRC or
@@ -80,34 +83,35 @@ class GenMessage:
     Note that this does not contain a `content`, becuause that's only needed
     for non-command things!
     """
-    
+
     channel: GenChannel
     author: GenUser
     guild: discord.Guild
-    discord_message: discord.Message # optional
+    discord_message: Optional[discord.Message]
     mentions: list
     irc_bridge: IrcBridge
-    
-    def __init__(self, irc_bridge, discord_message = None, discord_channel = None, author = None):
+
+    def __init__(self, irc_bridge, discord_message=None, author=None):
         self.irc_bridge = irc_bridge
         if discord_message:
             self.guild = discord_message.guild
             self.channel = GenChannel(discord_message.channel, irc_bridge)
-            self.author = GenUser(discord_user = discord_message.author)
+            self.author = GenUser(discord_user=discord_message.author)
             self.discord_message = discord_message
             self.mentions = discord_message.mentions
         else:
             self.guild = irc_bridge.discord_guild
             self.channel = GenChannel(irc_bridge.discord_channel, irc_bridge)
-            self.author = GenUser(irc_user = author)
+            self.author = GenUser(irc_user=author)
             self.discord_message = None
-            self.mentions = None
-            
+            self.mentions = []
+
     async def add_reaction(self, reaction: str) -> None:
         if self.discord_message:
             await self.discord_message.add_reaction(reaction)
         else:
             await self.channel.send(f"{self.author.mention}: {reaction}")
+
 
 class CommandProcessor:
     prefix: str
@@ -127,24 +131,27 @@ class CommandProcessor:
 
     # XXX: Some day integrate these both under the banner of a GenMessage. 
     # It wouldn't be that much more work, I suspect, but I didn't do it.
-    async def process_discord_message(self, instance: discord.Client, irc_bridge: IrcBridge, message: discord.Message) -> None:
+    async def process_discord_message(self, instance: discord.Client, irc_bridge: IrcBridge,
+                                      message: discord.Message) -> None:
         trigger, _, argument = message.clean_content.partition(' ')
         if trigger not in self.commands:
             return
 
         trigger_handler = self.commands[trigger]
         await asyncio.gather(
-            trigger_handler(instance, GenMessage(irc_bridge, discord_message = message), argument.strip()),
+            trigger_handler(instance, GenMessage(irc_bridge, discord_message=message), argument),
             user_stats.record_command(message, trigger),
         )
-    
-    async def process_irc_message(self, instance: discord.Client, irc_bridge: IrcBridge, discord_channel: discord.TextChannel, who: str, message: str) -> None:
+
+    async def process_irc_message(self, instance: discord.Client, irc_bridge: IrcBridge,
+                                  discord_channel: discord.TextChannel, who: str, message: str) -> None:
         trigger, _, argument = message.partition(' ')
         if trigger not in self.commands:
             return
 
         trigger_handler = self.commands[trigger]
-        await trigger_handler(instance, GenMessage(irc_bridge, discord_channel = discord_channel, author = who), message)
+        await trigger_handler(instance, GenMessage(irc_bridge, author=who), argument)
+
 
 class Sintia(discord.Client):
     command_handler: CommandProcessor = CommandProcessor(prefix='!')
@@ -368,9 +375,8 @@ class Sintia(discord.Client):
 
         return await message.channel.send(
             f'**{search_result["title"]}**\n'
-            f'<{search_result["link"]}>'
-            f'\n'
-            f'{search_result["snippet"]}\n',
+            f'<{search_result["link"]}>\n'
+            f'{search_result["snippet"]}',
         )
 
     @command_handler('gi')
@@ -478,7 +484,7 @@ class Sintia(discord.Client):
             f'**{result["word"]}**\n'
             f'<{result["permalink"]}>'
             f'\n'
-            f'{definition}\n',
+            f'{definition}',
         )
 
     @command_handler('countdown')
