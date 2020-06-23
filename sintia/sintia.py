@@ -454,7 +454,7 @@ class Sintia(discord.Client):
         await user_votes.add_votes(message, aggregated_votes)
         return await message.add_reaction('✅')
 
-    @command_handler('stock', 'stonks')
+    @command_handler('stock', 'stonk', 'stonks')
     async def stock(self, message: discord.Message, argument: str) -> None:
         if not argument:
             return
