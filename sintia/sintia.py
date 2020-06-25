@@ -453,6 +453,25 @@ class Sintia(discord.Client):
 
         await user_votes.add_votes(message, aggregated_votes)
         return await message.add_reaction('✅')
+                                          
+    @command_handler('time')
+    async def global_time(self, message: discord.Message, argument: str) -> None:
+        if not argument:
+            return
+
+        results = await self.http_get_request('https://www.timeanddate.com/worldclock/'), params={
+            'query': argument
+        })
+
+        # yeah... this is really the best way
+        p = re.compile(r"<td id=p0 class=rbi>([^<]+)<\/td>")
+        current_time = re.search(p, results).group(1)
+
+        if not current_time:
+            return await message.channel.send(f'No results found for `{argument}`')
+
+        return await message.channel.send(f'```{current_time}```')
+
 
     @command_handler('stock', 'stonk', 'stonks')
     async def stock(self, message: discord.Message, argument: str) -> None:
