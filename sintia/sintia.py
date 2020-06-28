@@ -464,13 +464,14 @@ class Sintia(discord.Client):
         })
 
         # yeah... this is really the best way
-        p = re.compile(r"<td id=p0 class=rbi>([^<]+)<\/td>")
-        current_time = re.search(p, results).group(1)
+        p = re.compile(r"<a href=[^>]+>([^<]+)</a><span id=p1s class=wds></span></td><td id=p1 class=rbi>([^<]+)</td>")
+        location = re.search(p, results).group(1)
+        current_time = re.search(p, results).group(2)
 
         if not current_time:
             return await message.channel.send(f'No results found for `{argument}`')
 
-        return await message.channel.send(f'```{current_time}```')
+        return await message.channel.send(f'```In {location} it is {current_time}```')
 
 
     @command_handler('stock', 'stonk', 'stonks')
