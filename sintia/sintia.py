@@ -464,7 +464,7 @@ class Sintia(discord.Client):
         })
 
         # yeah... this is really the best way
-        p = re.compile(r"<a href=[^>]+>([^<]+)</a><span id=p1s class=wds></span></td><td id=p1 class=rbi>([^<]+)</td>")
+        p = re.compile(r"<a href=[^>]+>([^<]+)</a><span id=p0s class=wds>.+<td id=p0 class=rbi>([^<]+)</td>")
         location = re.search(p, results).group(1)
         current_time = re.search(p, results).group(2)
 
