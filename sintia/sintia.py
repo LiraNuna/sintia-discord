@@ -4,6 +4,7 @@ import random
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta, date
+from json import JSONDecodeError
 from typing import Dict, Callable, Union, MutableMapping, Awaitable, Optional, List
 
 import aiohttp
@@ -634,10 +635,14 @@ class Sintia(discord.Client):
         avwx_config = get_config_section('search.avwx')
         results = await self.http_get_request(f'https://avwx.rest/api/metar/{argument}', params={
             'format': 'json',
-            'token': avwx_config['api_key']
+            'token': avwx_config['api_key'],
         })
 
-        json_results = json.loads(results)
+        try:
+            json_results = json.loads(results)
+        except JSONDecodeError:
+            return await message.channel.send(f'```{argument.upper()} does not publish METAR```')
+
         if 'error' in json_results:
             return await message.channel.send(f'```{json_results["error"]}```')
 
