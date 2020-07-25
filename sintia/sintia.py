@@ -175,6 +175,7 @@ class Sintia(discord.Client):
             **options,
         )
 
+        self.irc_bridge = None
         self.message_listeners = []
 
     def run(self):
@@ -195,7 +196,7 @@ class Sintia(discord.Client):
 
     def is_rate_limited(self, user_id: int, action: str, *sections: Union[str, int]) -> bool:
         rate_limits = self.get_rate_limits(action, *sections)
-        if not user_id in rate_limits:
+        if user_id not in rate_limits:
             return False
 
         rate_limit_config = get_config_section('ratelimits')
@@ -779,7 +780,8 @@ class Sintia(discord.Client):
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
-        self.irc_bridge = IrcBridge(self, 'irc.bridge')
+        if not self.irc_bridge:
+            self.irc_bridge = IrcBridge(self, 'irc.bridge')
 
     async def on_message(self, message: discord.Message) -> None:
         # Avoid replying to self
