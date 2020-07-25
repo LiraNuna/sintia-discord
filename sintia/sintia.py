@@ -14,6 +14,7 @@ from sintia.modules import quotes, user_votes
 from sintia.modules import user_stats
 from sintia.modules.irc_bridge import IrcBridge
 from sintia.modules.quotes import Quote
+from sintia.modules.user_votes import get_emoji_score_for_user
 from sintia.util import memoize
 from sintia.util import ordinal
 from sintia.util import plural
@@ -520,6 +521,22 @@ class Sintia(discord.Client):
         score = await user_votes.get_score_for_user(target_user, message.guild)
         return await message.channel.send(f'{target_user.mention} has {plural(score, "point")}')
 
+    @command_handler('emoji')
+    async def show_user_emoji_vote_score(self, message: GenMessage, argument: str):
+        target_user = message.author
+        if argument and message.mentions:
+            target_user, *rest = message.mentions
+            if rest:
+                return
+
+        scores = await user_votes.get_emoji_score_for_user(message.guild, target_user)
+        if not scores:
+            return await message.channel.send(f'No emoji score for {target_user.mention}')
+
+        return await message.channel.send(
+            '\n'.join(f'{emoji}: {score}' for emoji, score in sorted(scores.items(), key=lambda _: 1)),
+        )
+
     @command_handler('lastspoke')
     async def show_user_last_spoke(self, message: GenMessage, argument: str):
         target_user = None
@@ -768,36 +785,36 @@ class Sintia(discord.Client):
         )
 
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User) -> None:
-        # Only care about reactions to own messages
-        if reaction.message.author != self.user:
-            return
+        if reaction.message.author == self.user:
+            if reaction.emoji == '🚫' and reaction.count >= 2:
+                return await reaction.message.delete()
 
-        if reaction.emoji == '🚫' and reaction.count >= 2:
-            return await reaction.message.delete()
+            quote_id_matches = re.search(r'Quote \*\*#(?P<quote_id>\d+)\*\* \(rated -?\d+\)', reaction.message.content)
+            if quote_id_matches:
+                quote_id = int(quote_id_matches['quote_id'])
+                if self.is_rate_limited(user.id, 'quote.vote', quote_id):
+                    return
 
-        quote_id_matches = re.search(r'Quote \*\*#(?P<quote_id>\d+)\*\* \(rated -?\d+\)', reaction.message.content)
-        if quote_id_matches:
-            quote_id = int(quote_id_matches['quote_id'])
-            if self.is_rate_limited(user.id, 'quote.vote', quote_id):
-                return
+                if '👍' in reaction.emoji:
+                    self.record_action(user.id, 'quote.vote', quote_id)
+                    return await quotes.modify_quote_score(quote_id, +1)
+                if '👎' in reaction.emoji:
+                    self.record_action(user.id, 'quote.vote', quote_id)
+                    return await quotes.modify_quote_score(quote_id, -1)
 
-            if '👍' in reaction.emoji:
-                self.record_action(user.id, 'quote.vote', quote_id)
-                return await quotes.modify_quote_score(quote_id, +1)
-            if '👎' in reaction.emoji:
-                self.record_action(user.id, 'quote.vote', quote_id)
-                return await quotes.modify_quote_score(quote_id, -1)
+        if user not in {reaction.message.author, self.user}:
+            await user_votes.add_emoji_vote(reaction.message.author, reaction.message.guild, reaction.emoji, +1)
 
     async def on_reaction_remove(self, reaction: discord.Reaction, user: discord.User) -> None:
-        # Only care about reactions to own messages
-        if reaction.message.author != self.user:
-            return
+        if reaction.message.author == self.user:
+            quote_id_matches = re.search(r'Quote \*\*#(?P<quote_id>\d+)\*\* \(rated -?\d+\)', reaction.message.content)
+            if quote_id_matches:
+                quote_id = int(quote_id_matches['quote_id'])
 
-        quote_id_matches = re.search(r'Quote \*\*#(?P<quote_id>\d+)\*\* \(rated -?\d+\)', reaction.message.content)
-        if quote_id_matches:
-            quote_id = int(quote_id_matches['quote_id'])
+                if '👍' in reaction.emoji:
+                    return await quotes.modify_quote_score(quote_id, -1)
+                if '👎' in reaction.emoji:
+                    return await quotes.modify_quote_score(quote_id, +1)
 
-            if '👍' in reaction.emoji:
-                return await quotes.modify_quote_score(quote_id, -1)
-            if '👎' in reaction.emoji:
-                return await quotes.modify_quote_score(quote_id, +1)
+        if user not in {reaction.message.author, self.user}:
+            await user_votes.add_emoji_vote(reaction.message.author, reaction.message.guild, reaction.emoji, -1)
