@@ -235,16 +235,16 @@ class Sintia(discord.Client):
 
     @command_handler('fq')
     async def find_quote(self, message: GenMessage, argument: str) -> None:
-        search_results = await quotes.find_quotes_by_search_term(argument)
+        quote, search_results = await asyncio.gather(
+            quotes.random_quote_by_search_term(argument),
+            quotes.find_quotes_by_search_term(argument),
+        )
+
         if not search_results:
             return await message.channel.send('No quotes match that search term.')
 
-        total_results = len(search_results)
-        random_quote_index = random.choice(range(total_results))
-
-        quote = search_results[random_quote_index]
         return await message.channel.send(
-            f'Result {random_quote_index + 1} of {total_results}: {self.format_quote(quote)}'
+            f'Result {search_results.index(quote) + 1} of {len(search_results)}: {self.format_quote(quote)}'
         )
 
     @command_handler('lq')

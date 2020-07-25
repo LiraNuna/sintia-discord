@@ -1,5 +1,7 @@
+import json
 import re
 from datetime import datetime
+import random
 from typing import NamedTuple, Optional, List
 
 from sintia.mysql import query_single_commit, query_all, query_single
@@ -25,6 +27,23 @@ class Quote(NamedTuple):
         quote = re.sub(rf'(<{nick_regex}>)', r'\n\1', quote)
         quote = re.sub(rf'(\* {nick_regex} )', r'\n\1', quote)
         return quote
+
+
+class StatefulRandom:
+    def __init__(self, query_coroutine):
+        self.state = {}
+        self.query_coroutine = query_coroutine
+
+    async def __call__(self, *args, **kwargs):
+        key = json.dumps((args, kwargs))
+
+        if not self.state.get(key):
+            self.state[key] = await self.query_coroutine(*args, **kwargs)
+            random.shuffle(self.state[key])
+        if not self.state[key]:
+            return None
+
+        return self.state[key].pop()
 
 
 async def get_quote(id: int) -> Optional[Quote]:
@@ -88,6 +107,9 @@ async def find_quotes_by_search_term(search_term: str) -> List[Quote]:
         f'%{search_term}%',
         result_type=Quote,
     )
+
+
+random_quote_by_search_term = StatefulRandom(find_quotes_by_search_term)
 
 
 async def add_quote(creator: str, quote: str, addchannel: str) -> int:
