@@ -45,10 +45,14 @@ class GenChannel:
     def is_nsfw(self):
         return self.discord_channel.is_nsfw()
 
-    async def send(self, s):
+    async def send(self, content='', embed: Optional[discord.Embed] = None):
+        irc_content = content
+        if embed:
+            irc_content = f'{embed.title} ({embed.url})\n{embed.description}'
+
         await asyncio.gather(
-            self.irc_bridge.reply(self.discord_channel, s),
-            self.discord_channel.send(s)
+            self.irc_bridge.reply(self.discord_channel, irc_content),
+            self.discord_channel.send(content, embed=embed),
         )
 
 
