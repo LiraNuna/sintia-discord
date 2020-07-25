@@ -3,8 +3,8 @@ import json
 import random
 import re
 from collections import defaultdict
-from datetime import datetime, timedelta
-from typing import Dict, Callable, Union, MutableMapping, Awaitable, Optional
+from datetime import datetime, timedelta, date
+from typing import Dict, Callable, Union, MutableMapping, Awaitable, Optional, List
 
 import aiohttp
 import discord
@@ -12,6 +12,7 @@ import discord
 from sintia.config import get_config_section
 from sintia.modules import quotes, user_votes
 from sintia.modules import user_stats
+from sintia.modules.irc_bridge import IrcBridge
 from sintia.modules.quotes import Quote
 from sintia.util import memoize
 from sintia.util import ordinal
@@ -19,6 +20,97 @@ from sintia.util import plural
 from sintia.util import readable_timedelta
 
 Callback = Callable[[discord.Client, discord.Message, str], Awaitable[None]]
+MessageListener = Callable[[discord.Client, discord.Message], Awaitable[None]]
+
+
+class GenChannel:
+    """
+    A generic channel that wraps both an IRC channel and its paired Discord
+    channel.
+    """
+
+    discord_channel: discord.TextChannel
+    irc_bridge: IrcBridge
+
+    def __init__(self, discord_channel, irc_bridge):
+        self.irc_bridge = irc_bridge
+        self.discord_channel = discord_channel
+
+    @property
+    def name(self):
+        return self.discord_channel.name
+
+    def is_nsfw(self):
+        return self.discord_channel.is_nsfw()
+
+    async def send(self, s):
+        await asyncio.gather(
+            self.irc_bridge.reply(self.discord_channel, s),
+            self.discord_channel.send(s)
+        )
+
+
+class GenUser:
+    """
+    Something that could be either a Discord user, or an IRC user.
+    """
+
+    id: int
+    display_name: str
+    bot: bool
+    mention: str
+
+    # XXX: implement equality some day
+
+    def __init__(self, irc_user=None, discord_user=None):
+        if irc_user:
+            self.id = hash(irc_user)
+            self.display_name = irc_user
+            self.bot = False
+            self.mention = irc_user
+        else:
+            self.id = discord_user.id
+            self.display_name = discord_user.display_name
+            self.bot = discord_user.bot
+            self.mention = discord_user.mention
+
+
+class GenMessage:
+    """
+    A generic message that represents either a message that came from IRC or
+    a message that came from Discord.
+    
+    Note that this does not contain a `content`, becuause that's only needed
+    for non-command things!
+    """
+
+    channel: GenChannel
+    author: GenUser
+    guild: discord.Guild
+    discord_message: Optional[discord.Message]
+    mentions: list
+    irc_bridge: IrcBridge
+
+    def __init__(self, irc_bridge, discord_message=None, author=None):
+        self.irc_bridge = irc_bridge
+        if discord_message:
+            self.guild = discord_message.guild
+            self.channel = GenChannel(discord_message.channel, irc_bridge)
+            self.author = GenUser(discord_user=discord_message.author)
+            self.discord_message = discord_message
+            self.mentions = discord_message.mentions
+        else:
+            self.guild = irc_bridge.discord_guild
+            self.channel = GenChannel(irc_bridge.discord_channel, irc_bridge)
+            self.author = GenUser(irc_user=author)
+            self.discord_message = None
+            self.mentions = []
+
+    async def add_reaction(self, reaction: str) -> None:
+        if self.discord_message:
+            await self.discord_message.add_reaction(reaction)
+        else:
+            await self.channel.send(f"{self.author.mention}: {reaction}")
 
 
 class CommandProcessor:
@@ -38,20 +130,34 @@ class CommandProcessor:
 
         return decorator
 
-    async def process_message(self, instance: discord.Client, message: discord.Message) -> None:
+    # XXX: Some day integrate these both under the banner of a GenMessage. 
+    # It wouldn't be that much more work, I suspect, but I didn't do it.
+    async def process_discord_message(self, instance: discord.Client, irc_bridge: IrcBridge,
+                                      message: discord.Message) -> None:
         trigger, _, argument = message.clean_content.partition(' ')
         if trigger not in self.commands:
             return
 
         trigger_handler = self.commands[trigger]
         await asyncio.gather(
-            trigger_handler(instance, message, argument.strip()),
+            trigger_handler(instance, GenMessage(irc_bridge, discord_message=message), argument),
             user_stats.record_command(message, trigger),
         )
+
+    async def process_irc_message(self, instance: discord.Client, irc_bridge: IrcBridge,
+                                  discord_channel: discord.TextChannel, who: str, message: str) -> None:
+        trigger, _, argument = message.partition(' ')
+        if trigger not in self.commands:
+            return
+
+        trigger_handler = self.commands[trigger]
+        await trigger_handler(instance, GenMessage(irc_bridge, author=who), argument)
 
 
 class Sintia(discord.Client):
     command_handler: CommandProcessor = CommandProcessor(prefix='!')
+
+    message_listeners: List[MessageListener]
 
     def __init__(self, *, loop=None, **options):
         discord_config = get_config_section('discord')
@@ -63,10 +169,15 @@ class Sintia(discord.Client):
             **options,
         )
 
+        self.message_listeners = []
+
     def run(self):
         discord_config = get_config_section('discord')
 
         super().run(discord_config['token'])
+
+    def add_message_listener(self, listener: MessageListener) -> None:
+        self.message_listeners.append(listener)
 
     @memoize
     def get_rate_limits(self, action: str, *sections: Union[str, int]) -> Dict[int, datetime]:
@@ -97,7 +208,7 @@ class Sintia(discord.Client):
         )
 
     @command_handler('q')
-    async def read_quote(self, message: discord.Message, argument: str) -> None:
+    async def read_quote(self, message: GenMessage, argument: str) -> None:
         # When no argument is given, we display a random quote
         if not argument:
             quote, latest_quote = await asyncio.gather(
@@ -123,7 +234,7 @@ class Sintia(discord.Client):
         return await self.find_quote(message, argument)
 
     @command_handler('fq')
-    async def find_quote(self, message: discord.Message, argument: str) -> None:
+    async def find_quote(self, message: GenMessage, argument: str) -> None:
         search_results = await quotes.find_quotes_by_search_term(argument)
         if not search_results:
             return await message.channel.send('No quotes match that search term.')
@@ -137,7 +248,7 @@ class Sintia(discord.Client):
         )
 
     @command_handler('lq')
-    async def last_quote(self, message: discord.Message, argument: str) -> None:
+    async def last_quote(self, message: GenMessage, argument: str) -> None:
         quote = await quotes.get_latest_quote(containing=argument)
         if not quote:
             return await message.channel.send(f'No quotes found')
@@ -149,7 +260,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Latest quote {extra_message}is {self.format_quote(quote)}')
 
     @command_handler('bq')
-    async def best_quote(self, message: discord.Message, argument: str) -> None:
+    async def best_quote(self, message: GenMessage, argument: str) -> None:
         # No param simply shows the best quote
         if not argument:
             quote = await quotes.get_best_quote()
@@ -175,7 +286,7 @@ class Sintia(discord.Client):
             await message.channel.send(self.format_quote(quote))
 
     @command_handler('iq')
-    async def quote_info(self, message: discord.Message, argument: str) -> None:
+    async def quote_info(self, message: GenMessage, argument: str) -> None:
         if not argument.isdigit():
             return
 
@@ -199,7 +310,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'{quote_info}. It is ranked {ordinal(rank)}.')
 
     @command_handler('aq')
-    async def add_quote(self, message: discord.Message, argument: str) -> None:
+    async def add_quote(self, message: GenMessage, argument: str) -> None:
         if not argument:
             return
 
@@ -211,7 +322,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Quote **#{quote_id}** has been added.')
 
     @command_handler('+q')
-    async def upvote_quote(self, message: discord.Message, argument: str) -> None:
+    async def upvote_quote(self, message: GenMessage, argument: str) -> None:
         if not argument.isdigit():
             return
 
@@ -228,7 +339,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Popularity of quote {quote.id} has increased.')
 
     @command_handler('-q')
-    async def downvote_quote(self, message: discord.Message, argument: str) -> None:
+    async def downvote_quote(self, message: GenMessage, argument: str) -> None:
         if not argument.isdigit():
             return
 
@@ -245,7 +356,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Popularity of quote {quote.id} has decreased.')
 
     @command_handler('g')
-    async def google_search(self, message: discord.Message, argument: str) -> None:
+    async def google_search(self, message: GenMessage, argument: str) -> None:
         if not argument:
             return
 
@@ -265,13 +376,12 @@ class Sintia(discord.Client):
 
         return await message.channel.send(
             f'**{search_result["title"]}**\n'
-            f'<{search_result["link"]}>'
-            f'\n'
-            f'{search_result["snippet"]}\n',
+            f'<{search_result["link"]}>\n'
+            f'{search_result["snippet"]}',
         )
 
     @command_handler('gi')
-    async def google_image_search(self, message: discord.Message, argument: str) -> None:
+    async def google_image_search(self, message: GenMessage, argument: str) -> None:
         if not argument:
             return
 
@@ -293,11 +403,11 @@ class Sintia(discord.Client):
         return await message.channel.send(search_result["link"])
 
     @command_handler('gif')
-    async def google_gif_search(self, message: discord.Message, argument: str) -> None:
+    async def google_gif_search(self, message: GenMessage, argument: str) -> None:
         return await self.google_image_search(message, argument + ' filetype:gif')
 
     @command_handler('yt')
-    async def youtube_search(self, message: discord.Message, argument: str) -> None:
+    async def youtube_search(self, message: GenMessage, argument: str) -> None:
         if not argument:
             return
 
@@ -318,7 +428,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'https://www.youtube.com/watch?v={search_result["id"]["videoId"]}')
 
     @command_handler('w')
-    async def wikipedia_search(self, message: discord.Message, argument: str) -> None:
+    async def wikipedia_search(self, message: GenMessage, argument: str) -> None:
         if not argument:
             return
 
@@ -357,7 +467,7 @@ class Sintia(discord.Client):
         return await message.channel.send(embed=embed)
 
     @command_handler('ud')
-    async def urbandictionary_search(self, message: discord.Message, argument: str) -> None:
+    async def urbandictionary_search(self, message: GenMessage, argument: str) -> None:
         if not argument:
             return
 
@@ -375,11 +485,11 @@ class Sintia(discord.Client):
             f'**{result["word"]}**\n'
             f'<{result["permalink"]}>'
             f'\n'
-            f'{definition}\n',
+            f'{definition}',
         )
 
     @command_handler('countdown')
-    async def countdown(self, message: discord.Message, argument: str) -> None:
+    async def countdown(self, message: GenMessage, argument: str) -> None:
         if not argument.isdigit():
             return
 
@@ -396,11 +506,11 @@ class Sintia(discord.Client):
         return await message.channel.send('DONE!')
 
     @command_handler('hello')
-    async def greet(self, message: discord.Message, argument: str) -> None:
+    async def greet(self, message: GenMessage, argument: str) -> None:
         return await message.channel.send(f'Hello {message.author.mention}')
 
     @command_handler('score')
-    async def show_user_vote_score(self, message: discord.Message, argument: str):
+    async def show_user_vote_score(self, message: GenMessage, argument: str):
         target_user = message.author
         if argument and message.mentions:
             target_user, *rest = message.mentions
@@ -411,7 +521,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'{target_user.mention} has {plural(score, "point")}')
 
     @command_handler('lastspoke')
-    async def show_user_last_spoke(self, message: discord.Message, argument: str):
+    async def show_user_last_spoke(self, message: GenMessage, argument: str):
         target_user = None
         if argument and message.mentions:
             target_user, *rest = message.mentions
@@ -447,6 +557,10 @@ class Sintia(discord.Client):
             aggregated_votes[message.guild.get_member(int(mentioned_user_id))] += point_value[action]
 
         # Ignore self-voting
+        #
+        # XXX: This doesn't work with IRC, because message.author is a
+        # GenAuthor there.  Luckily, this can't be called through the
+        # generic IRC path, since it's not a command.
         has_self_vote = aggregated_votes.pop(message.author, None)
         if has_self_vote or not aggregated_votes:
             return
@@ -475,7 +589,7 @@ class Sintia(discord.Client):
 
 
     @command_handler('stock', 'stonk', 'stonks')
-    async def stock(self, message: discord.Message, argument: str) -> None:
+    async def stock(self, message: GenMessage, argument: str) -> None:
         if not argument:
             return
 
@@ -496,7 +610,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f"**{argument}**: {time_series[latest_time_stamp]['4. close']}")
 
     @command_handler('metar')
-    async def metar(self, message: discord.Message, argument: str) -> None:
+    async def metar(self, message: GenMessage, argument: str) -> None:
         if not argument:
             return
 
@@ -539,7 +653,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Rolled **{argument}**: {" + ".join(map(str, rolls))} = {sum(rolls)}')
 
     @command_handler('conv', 'convert')
-    async def convert(self, message: discord.Message, argument: str) -> None:
+    async def convert(self, message: GenMessage, argument: str) -> None:
         aliases = {
             'inches': 'inch',
             'cm': 'centimeter',
@@ -639,15 +753,18 @@ class Sintia(discord.Client):
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
+        self.irc_bridge = IrcBridge(self, 'irc.bridge')
+
     async def on_message(self, message: discord.Message) -> None:
         # Avoid replying to self
-        if message.author == self.user:
-            return
+        # if message.author == self.user:
+        #     return
 
         await asyncio.gather(
             self.vote_handler(message),
             user_stats.record_message(message),
-            self.command_handler.process_message(self, message),
+            self.command_handler.process_discord_message(self, self.irc_bridge, message),
+            *[listener(self, message) for listener in self.message_listeners],
         )
 
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User) -> None:
