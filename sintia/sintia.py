@@ -617,20 +617,17 @@ class Sintia(discord.Client):
             return
 
         argument = argument.upper()
-        alpha_vantage_config = get_config_section('search.alpha-vantage')
-        results = await self.http_get_request('https://www.alphavantage.co/query', params={
-            'function': 'TIME_SERIES_DAILY',
+        finnhub_config = get_config_section('search.finnhub')
+        results = await self.http_get_request('https://finnhub.io/api/v1/quote', params={
             'symbol': argument,
-            'apikey': alpha_vantage_config['api_key'],
+            'token': finnhub_config['api_key'],
         })
 
         json_results = json.loads(results)
-        time_series = json_results.get('Time Series (Daily)', {})
-        if not time_series:
+        if not json_results:
             return await message.channel.send(f'No results found for `{argument}`')
 
-        latest_time_stamp = max(time_series, key=datetime.fromisoformat)
-        return await message.channel.send(f"**{argument}**: {time_series[latest_time_stamp]['4. close']}")
+        return await message.channel.send(f"**{argument}**: {json_results['c']}")
 
     @command_handler('metar')
     async def metar(self, message: GenMessage, argument: str) -> None:
