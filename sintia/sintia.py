@@ -627,7 +627,8 @@ class Sintia(discord.Client):
         if not json_results:
             return await message.channel.send(f'No results found for `{argument}`')
 
-        return await message.channel.send(f"**{argument}**: {json_results['c']}")
+        daily_delta = (1 - (json_results['pc'] / json_results['c'])) * 100
+        return await message.channel.send(f"**{argument}**: {json_results['c']:.2f} ({daily_delta:+.2f}%)")
 
     @command_handler('metar')
     async def metar(self, message: GenMessage, argument: str) -> None:
