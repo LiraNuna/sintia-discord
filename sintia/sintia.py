@@ -626,6 +626,8 @@ class Sintia(discord.Client):
         json_results = json.loads(results)
         if not json_results:
             return await message.channel.send(f'No results found for `{argument}`')
+        if 'error' in json_results:
+            return await message.channel.send(f'API returned an error: `{json_results["error"]}`')
 
         daily_delta = (1 - (json_results['pc'] / json_results['c'])) * 100
         return await message.channel.send(f"**{argument}**: {json_results['c']:.2f} ({daily_delta:+.2f}%)")
