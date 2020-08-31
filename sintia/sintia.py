@@ -146,7 +146,7 @@ class CommandProcessor:
 
         trigger_handler = self.commands[trigger]
         await asyncio.gather(
-            trigger_handler(instance, GenMessage(irc_bridge, discord_message=message), argument),
+            trigger_handler(instance, GenMessage(irc_bridge, discord_message=message), argument.strip()),
             user_stats.record_command(message, trigger),
         )
 
@@ -157,7 +157,7 @@ class CommandProcessor:
             return
 
         trigger_handler = self.commands[trigger]
-        await trigger_handler(instance, GenMessage(irc_bridge, author=who), argument)
+        await trigger_handler(instance, GenMessage(irc_bridge, author=who), argument.strip())
 
 
 class Sintia(discord.Client):
