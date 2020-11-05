@@ -170,8 +170,11 @@ class Sintia(discord.Client):
 
         options.setdefault('max_messages', discord_config.getint('max_messages'))
 
+        intents = discord.Intents.default()
+        intents.members = True
         super().__init__(
             loop=loop,
+            intents=intents,
             **options,
         )
 
