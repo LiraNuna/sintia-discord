@@ -346,7 +346,7 @@ class Sintia(discord.Client):
 
         self.record_action(message.author.id, 'quote.vote', quote_id)
         await quotes.modify_quote_score(quote.id, +1)
-        return await message.channel.send(f'Popularity of quote {quote.id} has increased.')
+        return await message.channel.send(f'Popularity of quote **#{quote_id}** has increased.')
 
     @command_handler('-q')
     async def downvote_quote(self, message: GenMessage, argument: str) -> None:
@@ -363,7 +363,7 @@ class Sintia(discord.Client):
 
         self.record_action(message.author.id, 'quote.vote', quote_id)
         await quotes.modify_quote_score(quote.id, -1),
-        return await message.channel.send(f'Popularity of quote {quote.id} has decreased.')
+        return await message.channel.send(f'Popularity of quote **#{quote_id}** has decreased.')
 
     @command_handler('g')
     async def google_search(self, message: GenMessage, argument: str) -> None:
@@ -804,7 +804,7 @@ class Sintia(discord.Client):
             if reaction.emoji == '🚫' and reaction.count >= 2:
                 return await reaction.message.delete()
 
-            quote_id_matches = re.search(r'Quote \*\*#(?P<quote_id>\d+)\*\* \(rated -?\d+\)', reaction.message.content)
+            quote_id_matches = re.search(r'[Qq]uote \*\*#(?P<quote_id>\d+)\*\*', reaction.message.content)
             if quote_id_matches:
                 quote_id = int(quote_id_matches['quote_id'])
                 if self.is_rate_limited(user.id, 'quote.vote', quote_id):
@@ -822,7 +822,7 @@ class Sintia(discord.Client):
 
     async def on_reaction_remove(self, reaction: discord.Reaction, user: discord.User) -> None:
         if reaction.message.author == self.user:
-            quote_id_matches = re.search(r'Quote \*\*#(?P<quote_id>\d+)\*\* \(rated -?\d+\)', reaction.message.content)
+            quote_id_matches = re.search(r'[Qq]uote \*\*#(?P<quote_id>\d+)\*\*', reaction.message.content)
             if quote_id_matches:
                 quote_id = int(quote_id_matches['quote_id'])
 
