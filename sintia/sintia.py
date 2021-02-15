@@ -632,7 +632,7 @@ class Sintia(discord.Client):
         if 'error' in json_results:
             return await message.channel.send(f'API returned an error: `{json_results["error"]}`')
 
-        daily_delta = (1 - (json_results['pc'] / json_results['c'])) * 100
+        daily_delta = ((json_results['c'] / json_results['pc']) - 1) * 100
         return await message.channel.send(f"**{argument}**: {json_results['c']:.2f} ({daily_delta:+.2f}%)")
 
     @command_handler('metar')
