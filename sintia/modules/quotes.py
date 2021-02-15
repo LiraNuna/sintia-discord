@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import json
 import re
 from datetime import datetime
 import random
-from typing import NamedTuple, Optional, List
+from typing import NamedTuple, Optional
 
 from sintia.mysql import query_single_commit, query_all, query_single
 
@@ -89,7 +91,7 @@ async def get_quote_rank(quote_id: int) -> int:
     return int(result['quote_rank'])
 
 
-async def get_quotes_for_rank(rank: int) -> List[Quote]:
+async def get_quotes_for_rank(rank: int) -> list[Quote]:
     return await query_all(
         """
         SELECT * FROM quotes WHERE score = (
@@ -101,7 +103,7 @@ async def get_quotes_for_rank(rank: int) -> List[Quote]:
     )
 
 
-async def find_quotes_by_search_term(search_term: str) -> List[Quote]:
+async def find_quotes_by_search_term(search_term: str) -> list[Quote]:
     return await query_all(
         "SELECT * FROM quotes WHERE quote LIKE %s ORDER BY id ASC",
         f'%{search_term}%',

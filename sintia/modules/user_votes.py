@@ -1,4 +1,6 @@
-from typing import Mapping, Union, NamedTuple, Dict
+from __future__ import annotations
+
+from typing import Mapping, Union
 
 import discord
 
@@ -55,7 +57,7 @@ async def add_emoji_vote(
     )
 
 
-async def get_emoji_score_for_user(guild: discord.Guild, user: discord.User, limit: int = 3) -> Dict[str, int]:
+async def get_emoji_score_for_user(guild: discord.Guild, user: discord.User, limit: int = 3) -> dict[str, int]:
     rows = await query_all(
         """
         SELECT emoji, amount 

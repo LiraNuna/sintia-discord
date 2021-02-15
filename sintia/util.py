@@ -1,7 +1,13 @@
+from __future__ import annotations
+
 import asyncio
 import inspect
 from datetime import timedelta
 from functools import lru_cache
+from itertools import islice
+from typing import Iterable, TypeVar
+
+T = TypeVar('T')
 
 
 def memoize(user_function):
@@ -43,3 +49,12 @@ def readable_timedelta(delta: timedelta) -> str:
             return plural(n, period) + ' ago'
 
     return 'just now'
+
+
+def ichunk(iterable: Iterable[T], chunk_size: int) -> Iterable[list[T]]:
+    """
+    Split up iterable into chunk_size lists
+    """
+    i = iter(iterable)
+    while chunk := list(islice(i, chunk_size)):
+        yield chunk

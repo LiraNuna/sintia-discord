@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import re
 import asyncio
-from typing import Dict
 from configparser import SectionProxy
 
 import discord
@@ -16,9 +17,9 @@ class IrcBridge(pydle.Client):
     discord_channel: discord.TextChannel
 
     user_regex: re.Pattern
-    user_cache: Dict[str, discord.Member]
+    user_cache: dict[str, discord.Member]
     emoji_regex: re.Pattern
-    emoji_cache: Dict[str, discord.Emoji]
+    emoji_cache: dict[str, discord.Emoji]
 
     def __init__(self, forwarder: discord.Client, config_section: str) -> None:
         self.config = get_config_section(config_section)

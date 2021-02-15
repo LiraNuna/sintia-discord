@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import random
 import re
 from collections import defaultdict
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from json import JSONDecodeError
-from typing import Dict, Callable, Union, MutableMapping, Awaitable, Optional, List
+from typing import Callable, Union, MutableMapping, Awaitable, Optional
 
 import aiohttp
 import discord
@@ -15,7 +17,6 @@ from sintia.modules import quotes, user_votes
 from sintia.modules import user_stats
 from sintia.modules.irc_bridge import IrcBridge
 from sintia.modules.quotes import Quote
-from sintia.modules.user_votes import get_emoji_score_for_user
 from sintia.util import memoize
 from sintia.util import ordinal
 from sintia.util import plural
@@ -121,7 +122,7 @@ class GenMessage:
 
 class CommandProcessor:
     prefix: str
-    commands: Dict[str, Callback]
+    commands: dict[str, Callback]
 
     def __init__(self, *, prefix: str) -> None:
         self.prefix = prefix
@@ -163,7 +164,7 @@ class CommandProcessor:
 class Sintia(discord.Client):
     command_handler: CommandProcessor = CommandProcessor(prefix='!')
 
-    message_listeners: List[MessageListener]
+    message_listeners: list[MessageListener]
 
     def __init__(self, *, loop=None, **options):
         discord_config = get_config_section('discord')
@@ -190,7 +191,7 @@ class Sintia(discord.Client):
         self.message_listeners.append(listener)
 
     @memoize
-    def get_rate_limits(self, action: str, *sections: Union[str, int]) -> Dict[int, datetime]:
+    def get_rate_limits(self, action: str, *sections: Union[str, int]) -> dict[int, datetime]:
         return {}
 
     def record_action(self, user_id: int, action: str, *sections: Union[str, int]) -> None:
@@ -206,7 +207,7 @@ class Sintia(discord.Client):
         duration = timedelta(seconds=rate_limit_config.getint(action))
         return rate_limits[user_id] + duration > datetime.now()
 
-    async def http_get_request(self, url: str, *, params: Optional[Dict[str, str]] = None) -> str:
+    async def http_get_request(self, url: str, *, params: Optional[dict[str, str]] = None) -> str:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params) as response:
                 return await response.text()
