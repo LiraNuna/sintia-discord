@@ -684,6 +684,8 @@ class Sintia(discord.Client):
 
     @command_handler('conv', 'convert')
     async def convert(self, message: GenMessage, argument: str) -> None:
+        fixer_config = get_config_section('search.fixer')
+
         aliases = {
             'inches': 'inch',
             'cm': 'centimeter',
@@ -768,18 +770,52 @@ class Sintia(discord.Client):
             },
         }
 
+        @memoize
+        async def get_supported_symbols() -> set[str]:
+            results = await self.http_get_request('http://data.fixer.io/api/symbols', params={
+                'access_key': fixer_config.get('api_key'),
+            })
+
+            json_result = json.loads(results)
+            return set(json_result['symbols'].keys())
+
         try:
             left, to_unit = re.split(r'\s+(?:to|in)\s+', argument, flags=re.IGNORECASE, maxsplit=1)
-            unit, from_unit = filter(None, re.split(r'(\-?\d+(?:\.?\d+)?)\s*', left))
-            from_unit, to_unit = from_unit.lower(), to_unit.lower()
-
-            to_unit = aliases.get(to_unit, to_unit)
-            from_unit = aliases.get(from_unit, from_unit)
-            return await message.channel.send(
-                f'{unit} {from_unit} = {conversions[from_unit][to_unit](float(unit)):.2f} {to_unit}',
-            )
+            amount, from_unit = filter(None, re.split(r'(\-?\d+(?:\.?\d+)?)\s*', left))
+            amount, from_unit, to_unit = float(amount), from_unit.lower(), to_unit.lower()
         except (KeyError, ValueError):
             return await message.add_reaction('❓')
+
+        try:
+            # Unit conversion
+            to_unit = aliases.get(to_unit, to_unit)
+            from_unit = aliases.get(from_unit, from_unit)
+
+            return await message.channel.send(
+                f'{amount:.2f} {from_unit} = {conversions[from_unit][to_unit](amount):.2f} {to_unit}',
+            )
+        except (KeyError, ValueError):
+            # Currency conversion
+            from_unit = from_unit.upper()
+            to_unit = to_unit.upper()
+
+            supported_symbols = await get_supported_symbols()
+            if from_unit not in supported_symbols or to_unit not in supported_symbols:
+                return await message.add_reaction('❓')
+
+            result = await self.http_get_request('http://data.fixer.io/api/latest', params={
+                'access_key': fixer_config.get('api_key'),
+                'symbols': f"{from_unit},{to_unit}",
+            })
+
+            json_result = json.loads(result)
+            if not json_result['success']:
+                return await message.channel.send(f'API returned error: ```{json_result["error"]["info"]}```')
+
+            converted = amount / json_result["rates"][from_unit] * json_result["rates"][to_unit]
+            return await message.channel.send(
+                f'{amount:.2f} {from_unit} = {converted:.2f} {to_unit}',
+            )
 
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
