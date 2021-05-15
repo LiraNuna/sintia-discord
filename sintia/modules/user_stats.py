@@ -5,7 +5,8 @@ from typing import NamedTuple
 
 import discord
 
-from sintia.mysql import query_single_commit, query_single
+from sintia.mysql import query_single
+from sintia.mysql import query_single_commit
 
 
 class ActivityRecord(NamedTuple):

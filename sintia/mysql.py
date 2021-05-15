@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Type, Optional, TypeVar
+from typing import Optional
+from typing import TypeVar
 
 import aiomysql
 
@@ -22,7 +23,7 @@ async def get_connection_pool():
     )
 
 
-async def query_single(query: str, *args, result_type: Type[T] = dict) -> Optional[T]:
+async def query_single(query: str, *args, result_type: type[T] = dict) -> Optional[T]:
     qdb_pool = await get_connection_pool()
     async with qdb_pool.acquire() as connection:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
@@ -35,7 +36,7 @@ async def query_single(query: str, *args, result_type: Type[T] = dict) -> Option
             return result_type(**row)
 
 
-async def query_all(query: str, *args, result_type: Type[T] = dict) -> list[T]:
+async def query_all(query: str, *args, result_type: type[T] = dict) -> list[T]:
     qdb_pool = await get_connection_pool()
     async with qdb_pool.acquire() as connection:
         async with connection.cursor(aiomysql.DictCursor) as cursor:

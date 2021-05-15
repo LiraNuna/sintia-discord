@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import re
 import asyncio
+import re
 from configparser import SectionProxy
 
 import discord
@@ -24,7 +24,7 @@ class IrcBridge(pydle.Client):
     def __init__(self, forwarder: discord.Client, config_section: str) -> None:
         self.config = get_config_section(config_section)
 
-        super().__init__ (forwarder.user.name, realname=forwarder.user.name)
+        super().__init__(forwarder.user.name, realname=forwarder.user.name)
 
         self.forwarder = forwarder
         self.discord_guild = forwarder.get_guild(self.config.getint('discord_guild'))
@@ -90,7 +90,8 @@ class IrcBridge(pydle.Client):
         # with mypy, anyway...
         await asyncio.gather(
             self.discord_channel.send(f'<**{source}**> {message}'),
-            self.forwarder.command_handler.process_irc_message(self.forwarder, self, self.discord_channel, source, message)
+            self.forwarder.command_handler.process_irc_message(self.forwarder, self, self.discord_channel, source,
+                                                               message)
         )
 
     async def on_discord_message(self, client: discord.Client, message: discord.Message) -> None:

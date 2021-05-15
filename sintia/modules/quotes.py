@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 from datetime import datetime
-import random
-from typing import NamedTuple, Optional
+from typing import NamedTuple
+from typing import Optional
 
-from sintia.mysql import query_single_commit, query_all, query_single
+from sintia.mysql import query_all
+from sintia.mysql import query_single
+from sintia.mysql import query_single_commit
 
 
 class Quote(NamedTuple):

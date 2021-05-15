@@ -4,18 +4,24 @@ import asyncio
 import json
 import random
 import re
+from collections import Awaitable
+from collections import Callable
+from collections import MutableMapping
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 from json import JSONDecodeError
 from typing import Any
-from typing import Callable, Union, MutableMapping, Awaitable, Optional
+from typing import Optional
+from typing import Union
 
 import aiohttp
 import discord
 
 from sintia.config import get_config_section
-from sintia.modules import quotes, user_votes
+from sintia.modules import quotes
 from sintia.modules import user_stats
+from sintia.modules import user_votes
 from sintia.modules.irc_bridge import IrcBridge
 from sintia.modules.quotes import Quote
 from sintia.util import memoize

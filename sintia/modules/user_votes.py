@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-from typing import Mapping, Union
+from collections import Mapping
+from typing import Union
 
 import discord
 
-from sintia.mysql import query_single, query_many_commit, query_single_commit, query_all
+from sintia.mysql import query_all
+from sintia.mysql import query_many_commit
+from sintia.mysql import query_single
+from sintia.mysql import query_single_commit
 
 
 async def add_votes(message: discord.Message, votes: Mapping[discord.User, int]) -> None:

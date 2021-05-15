@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from collections import Iterable
 from datetime import timedelta
 from functools import lru_cache
 from itertools import islice
-from typing import Iterable, TypeVar
+from typing import TypeVar
 
 T = TypeVar('T')
 
@@ -23,7 +24,7 @@ def memoize(user_function):
 
 def ordinal(position: int) -> str:
     return "%d%s" % (position, "tsnrhtdd"[(position // 10 % 10 != 1) * (position % 10 < 4) * position % 10::4])
-
+    
 
 def plural(count: int, thing: str) -> str:
     if count == 1:
