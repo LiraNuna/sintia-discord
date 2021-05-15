@@ -557,12 +557,15 @@ class Sintia(discord.Client):
         if not target_user:
             return
 
-        last_spoke = await user_stats.get_user_last_spoke(target_user, message.guild)
-        if not last_spoke:
+        last_activity = await user_stats.get_user_last_activity(target_user, message.guild)
+        if not last_activity:
             return await message.channel.send(f"I don't have a record of {target_user.mention} ever speaking here")
 
-        relative_seconds = readable_timedelta(datetime.utcnow() - last_spoke)
-        return await message.channel.send(f"{target_user.mention} last spoke {relative_seconds}")
+        relative_seconds = readable_timedelta(datetime.utcnow() - last_activity.last_spoke_at)
+        activity_channel: discord.TextChannel = message.guild.get_channel(last_activity.channel_id)
+        return await message.channel.send(
+            f"{target_user.mention} last spoke {relative_seconds} in {activity_channel.mention}",
+        )
 
     async def vote_handler(self, message: discord.Message) -> None:
         # Ignore bot votes

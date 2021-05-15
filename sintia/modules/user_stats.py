@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import NamedTuple
 
 import discord
 
 from sintia.mysql import query_single_commit, query_single
+
+
+class ActivityRecord(NamedTuple):
+    guild_id: int
+    channel_id: int
+    user_id: int
+    last_spoke_at: datetime
 
 
 async def record_message(message: discord.Message) -> None:
@@ -28,14 +36,15 @@ async def record_command(message: discord.Message, command: str) -> None:
     )
 
 
-async def get_user_last_spoke(user: discord.User, guild: discord.Guild) -> datetime:
-    row = await query_single(
+async def get_user_last_activity(user: discord.User, guild: discord.Guild) -> ActivityRecord:
+    return await query_single(
         """
-        SELECT MAX(last_spoke_at) AS last_spoke_at
+        SELECT *
         FROM user_activity_history
         WHERE guild_id = %s AND user_id = %s
+        ORDER BY last_spoke_at DESC
+        LIMIT 1
         """,
         guild.id, user.id,
+        result_type=ActivityRecord,
     )
-
-    return row['last_spoke_at']
