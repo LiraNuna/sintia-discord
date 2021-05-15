@@ -7,6 +7,7 @@ import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 from json import JSONDecodeError
+from typing import Any
 from typing import Callable, Union, MutableMapping, Awaitable, Optional
 
 import aiohttp
@@ -212,6 +213,10 @@ class Sintia(discord.Client):
             async with session.get(url, params=params) as response:
                 return await response.text()
 
+    async def http_get_request_json(self, url: str, *, params: Optional[dict[str, str]] = None) -> Any:
+        response_text = await self.http_get_request(url, params=params)
+        return json.loads(response_text)
+
     def format_quote(self, quote: Quote) -> str:
         return (
             f'Quote **#{quote.id}** (rated {quote.score}):\n'
@@ -372,7 +377,7 @@ class Sintia(discord.Client):
             return
 
         google_config = get_config_section('search.google')
-        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1', params={
+        results = await self.http_get_request_json('https://www.googleapis.com/customsearch/v1', params={
             'q': argument,
             'key': google_config['api_key'],
             'cx': google_config['search_engine_id'],
@@ -380,8 +385,7 @@ class Sintia(discord.Client):
             'num': '1',
         })
 
-        json_results = json.loads(results)
-        search_result, *rest = json_results.get('items', [None])
+        search_result, *rest = results.get('items', [None])
         if not search_result:
             return await message.channel.send(f'No results found for `{argument}`')
 
@@ -397,7 +401,7 @@ class Sintia(discord.Client):
             return
 
         google_config = get_config_section('search.google')
-        results = await self.http_get_request('https://www.googleapis.com/customsearch/v1', params={
+        results = await self.http_get_request_json('https://www.googleapis.com/customsearch/v1', params={
             'q': argument,
             'searchType': 'image',
             'key': google_config['api_key'],
@@ -406,8 +410,7 @@ class Sintia(discord.Client):
             'num': '1',
         })
 
-        json_results = json.loads(results)
-        search_result, *rest = json_results.get('items', [None])
+        search_result, *rest = results.get('items', [None])
         if not search_result:
             return await message.channel.send(f'No results found for `{argument}`')
 
@@ -423,7 +426,7 @@ class Sintia(discord.Client):
             return
 
         youtube_config = get_config_section('search.youtube')
-        results = await self.http_get_request('https://www.googleapis.com/youtube/v3/search', params={
+        results = await self.http_get_request_json('https://www.googleapis.com/youtube/v3/search', params={
             'q': argument,
             'part': 'id',
             'type': 'video',
@@ -431,8 +434,7 @@ class Sintia(discord.Client):
             'maxResults': '1',
         })
 
-        json_results = json.loads(results)
-        search_result, *rest = json_results.get('items', [None])
+        search_result, *rest = results.get('items', [None])
         if not search_result:
             return await message.channel.send(f'No results found for `{argument}`')
 
@@ -443,7 +445,7 @@ class Sintia(discord.Client):
         if not argument:
             return
 
-        raw_search_results = await self.http_get_request('https://en.wikipedia.org/w/api.php', params={
+        search_results = await self.http_get_request_json('https://en.wikipedia.org/w/api.php', params={
             'action': 'query',
             'format': 'json',
             'prop': 'extracts|info|pageimages',
@@ -458,7 +460,6 @@ class Sintia(discord.Client):
             'pithumbsize': 1024,
         })
 
-        search_results = json.loads(raw_search_results)
         if 'query' not in search_results:
             return await message.channel.send(f'No results found for `{argument}`')
 
@@ -482,15 +483,14 @@ class Sintia(discord.Client):
         if not argument:
             return
 
-        raw_search_results = await self.http_get_request('http://api.urbandictionary.com/v0/define', params={
+        results = await self.http_get_request_json('http://api.urbandictionary.com/v0/define', params={
             'term': argument,
         })
 
-        search_results = json.loads(raw_search_results)
-        if not search_results['list']:
+        if not results['list']:
             return await message.channel.send(f'No results found for `{argument}`')
 
-        result, *rest = search_results['list']
+        result, *rest = results['list']
         definition = result["definition"].replace("[", "").replace("]", "")
         return await message.channel.send(
             f'**{result["word"]}**\n'
@@ -624,19 +624,18 @@ class Sintia(discord.Client):
 
         argument = argument.upper()
         finnhub_config = get_config_section('search.finnhub')
-        results = await self.http_get_request('https://finnhub.io/api/v1/quote', params={
+        result = await self.http_get_request_json('https://finnhub.io/api/v1/quote', params={
             'symbol': argument,
             'token': finnhub_config['api_key'],
         })
 
-        json_results = json.loads(results)
-        if not json_results:
+        if not result:
             return await message.channel.send(f'No results found for `{argument}`')
-        if 'error' in json_results:
-            return await message.channel.send(f'API returned an error: `{json_results["error"]}`')
+        if 'error' in result:
+            return await message.channel.send(f'API returned an error: `{result["error"]}`')
 
-        daily_delta = ((json_results['c'] / json_results['pc']) - 1) * 100
-        return await message.channel.send(f"**{argument}**: {json_results['c']:.2f} ({daily_delta:+.2f}%)")
+        daily_delta = ((result['c'] / result['pc']) - 1) * 100
+        return await message.channel.send(f"**{argument}**: {result['c']:.2f} ({daily_delta:+.2f}%)")
 
     @command_handler('metar')
     async def metar(self, message: GenMessage, argument: str) -> None:
@@ -644,20 +643,18 @@ class Sintia(discord.Client):
             return
 
         avwx_config = get_config_section('search.avwx')
-        results = await self.http_get_request(f'https://avwx.rest/api/metar/{argument}', params={
-            'format': 'json',
-            'token': avwx_config['api_key'],
-        })
-
         try:
-            json_results = json.loads(results)
+            results = await self.http_get_request_json(f'https://avwx.rest/api/metar/{argument}', params={
+                'format': 'json',
+                'token': avwx_config['api_key'],
+            })
+
+            if 'error' in results:
+                return await message.channel.send(f'```{results["error"]}```')
+
+            return await message.channel.send(f'```{results["raw"]}```')
         except JSONDecodeError:
             return await message.channel.send(f'```{argument.upper()} does not publish METAR```')
-
-        if 'error' in json_results:
-            return await message.channel.send(f'```{json_results["error"]}```')
-
-        return await message.channel.send(f'```{json_results["raw"]}```')
 
     @command_handler('roll')
     async def roll(self, message: discord.Message, argument: str) -> None:
@@ -775,12 +772,11 @@ class Sintia(discord.Client):
 
         @memoize
         async def get_supported_symbols() -> set[str]:
-            results = await self.http_get_request('http://data.fixer.io/api/symbols', params={
+            results = await self.http_get_request_json('http://data.fixer.io/api/symbols', params={
                 'access_key': fixer_config.get('api_key'),
             })
 
-            json_result = json.loads(results)
-            return set(json_result['symbols'].keys())
+            return set(results['symbols'].keys())
 
         try:
             left, to_unit = re.split(r'\s+(?:to|in)\s+', argument, flags=re.IGNORECASE, maxsplit=1)
@@ -806,16 +802,15 @@ class Sintia(discord.Client):
             if from_unit not in supported_symbols or to_unit not in supported_symbols:
                 return await message.add_reaction('❓')
 
-            result = await self.http_get_request('http://data.fixer.io/api/latest', params={
+            result = await self.http_get_request_json('http://data.fixer.io/api/latest', params={
                 'access_key': fixer_config.get('api_key'),
                 'symbols': f"{from_unit},{to_unit}",
             })
 
-            json_result = json.loads(result)
-            if not json_result['success']:
-                return await message.channel.send(f'API returned error: ```{json_result["error"]["info"]}```')
+            if not result['success']:
+                return await message.channel.send(f'API returned error: ```{result["error"]["info"]}```')
 
-            converted = amount / json_result["rates"][from_unit] * json_result["rates"][to_unit]
+            converted = amount / result["rates"][from_unit] * result["rates"][to_unit]
             return await message.channel.send(
                 f'{amount:.2f} {from_unit} = {converted:.2f} {to_unit}',
             )
