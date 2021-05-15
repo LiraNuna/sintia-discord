@@ -88,7 +88,7 @@ class GenMessage:
     A generic message that represents either a message that came from IRC or
     a message that came from Discord.
     
-    Note that this does not contain a `content`, becuause that's only needed
+    Note that this does not contain a `content`, because that's only needed
     for non-command things!
     """
 
