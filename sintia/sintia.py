@@ -17,6 +17,7 @@ from typing import Union
 
 import aiohttp
 import discord
+import markovify
 
 from sintia.config import get_config_section
 from sintia.modules import quotes
@@ -144,7 +145,11 @@ class CommandProcessor:
 
         return decorator
 
-    # XXX: Some day integrate these both under the banner of a GenMessage. 
+    def is_valid_command(self, message: discord.Message) -> bool:
+        trigger, _, argument = message.clean_content.partition(' ')
+        return trigger in self.commands
+
+    # XXX: Some day integrate these both under the banner of a GenMessage.
     # It wouldn't be that much more work, I suspect, but I didn't do it.
     async def process_discord_message(self, instance: discord.Client, irc_bridge: IrcBridge,
                                       message: discord.Message) -> None:
@@ -172,6 +177,7 @@ class Sintia(discord.Client):
     command_handler: CommandProcessor = CommandProcessor(prefix='!')
 
     message_listeners: list[MessageListener]
+    chat_brain: markovify.Text
 
     def __init__(self, *, loop=None, **options):
         discord_config = get_config_section('discord')
@@ -188,6 +194,9 @@ class Sintia(discord.Client):
 
         self.irc_bridge = None
         self.message_listeners = []
+
+        with open('brain.json', 'rt') as f:
+            self.chat_brain = markovify.Text.from_json(f.read())
 
     def run(self):
         discord_config = get_config_section('discord')
@@ -821,6 +830,29 @@ class Sintia(discord.Client):
                 f'{amount:.2f} {from_unit} = {converted:.2f} {to_unit}',
             )
 
+    @command_handler('chat')
+    async def chat(self, message: GenMessage, argument: str) -> None:
+        return await message.channel.send(self.chat_brain.make_sentence())
+
+    @command_handler('savebrain')
+    async def save_brain(self, message: GenMessage, argument: str) -> None:
+        with open('brain.json', 'wt') as f:
+            f.write(self.chat_brain.to_json())
+
+        return await message.add_reaction('✔')
+
+    async def chat_message_handler(self, message: discord.Message) -> None:
+        if message.author == self.user:
+            return
+        if self.command_handler.is_valid_command(message):
+            return
+        if self.user in message.mentions:
+            return await GenMessage(self.irc_bridge, message, self).channel.send(
+                self.chat_brain.make_sentence_with_start(f'@{message.author.display_name}', strict=False)
+            )
+
+        self.chat_brain = markovify.combine([self.chat_brain, markovify.Text(message.clean_content)])
+
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
@@ -835,6 +867,7 @@ class Sintia(discord.Client):
         await asyncio.gather(
             self.vote_handler(message),
             user_stats.record_message(message),
+            self.chat_message_handler(message),
             self.command_handler.process_discord_message(self, self.irc_bridge, message),
             *[listener(self, message) for listener in self.message_listeners],
         )

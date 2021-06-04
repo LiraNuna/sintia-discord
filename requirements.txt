@@ -2,3 +2,4 @@ aiohttp==3.7.4
 aiomysql==0.0.21
 discord.py==1.6.0
 pydle==0.9.4
+markovify==0.9.0
