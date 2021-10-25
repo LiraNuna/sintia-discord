@@ -35,10 +35,12 @@ Callback = Callable[[discord.Client, discord.Message, str], Awaitable[None]]
 class CommandProcessor:
     prefix: str
     commands: dict[str, Callback]
+    history: dict[discord.Message, discord.Message]
 
     def __init__(self, *, prefix: str) -> None:
         self.prefix = prefix
         self.commands = {}
+        self.history = {}
 
     def __call__(self, *commands: str):
         def decorator(func: Callback) -> Callback:
@@ -59,7 +61,7 @@ class CommandProcessor:
             return
 
         trigger_handler = self.commands[trigger]
-        await asyncio.gather(
+        self.history[message], _ = await asyncio.gather(
             trigger_handler(instance, message, argument.strip()),
             user_stats.record_command(message, trigger),
         )
@@ -142,7 +144,7 @@ class Sintia(discord.Client):
             )
 
             if not quote:
-                await message.channel.send(f'Quote with id {argument} does not exist')
+                return await message.channel.send(f'Quote with id {argument} does not exist')
 
             return await message.channel.send(self.format_quote(quote))
 
@@ -744,6 +746,11 @@ class Sintia(discord.Client):
             self.chat_message_handler(message),
             self.command_handler.process_discord_message(self, message),
         )
+
+    async def on_message_delete(self, message: discord.Message) -> None:
+        reply = self.command_handler.history.get(message)
+        if reply:
+            await reply.delete()
 
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User) -> None:
         if reaction.message.author == self.user:
