@@ -632,7 +632,7 @@ class Sintia(discord.Client):
 
         return await message.channel.send(f'```In {location} it is {current_time}```')
 
-    @command_handler('stock', 'stonk', 'stonks')
+    @command_handler('stock', 'stocks', 'stonk', 'stonks')
     async def stock(self, message: GenMessage, argument: str) -> None:
         if not argument:
             return
