@@ -342,7 +342,7 @@ class Sintia(discord.Client):
 
         return await message.channel.send(f'https://www.youtube.com/watch?v={search_result["id"]["videoId"]}')
 
-    @command_handler('w')
+    @command_handler('w', 'wiki')
     async def wikipedia_search(self, message: discord.Message, argument: str) -> None:
         if not argument:
             return
