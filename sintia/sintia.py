@@ -24,6 +24,7 @@ from sintia.modules import quotes
 from sintia.modules import user_stats
 from sintia.modules import user_votes
 from sintia.modules.quotes import Quote
+from sintia.util import gather_mapping
 from sintia.util import memoize
 from sintia.util import ordinal
 from sintia.util import plural
@@ -520,20 +521,23 @@ class Sintia(discord.Client):
         if not argument:
             return
 
-        argument = argument.upper()
+        tickers = argument.upper().split()
         finnhub_config = get_config_section('search.finnhub')
-        result = await self.http_get_request_json('https://finnhub.io/api/v1/quote', params={
-            'symbol': argument,
-            'token': finnhub_config['api_key'],
+        results = await gather_mapping({
+            ticker: self.http_get_request_json('https://finnhub.io/api/v1/quote', params={
+                'symbol': ticker,
+                'token': finnhub_config['api_key'],
+            })
+            for ticker in tickers
         })
 
-        if not result:
+        if not results:
             return await message.channel.send(f'No results found for `{argument}`')
-        if 'error' in result:
-            return await message.channel.send(f'API returned an error: `{result["error"]}`')
 
-        daily_delta = ((result['c'] / result['pc']) - 1) * 100
-        return await message.channel.send(f"**{argument}**: {result['c']:.2f} ({daily_delta:+.2f}%)")
+        return await message.channel.send('\n'.join(
+            f"**{ticker}**: {response['c']:.2f} ({(((response['c'] / response['pc']) - 1) * 100):+.2f}%)"
+            for ticker, response in results.items()
+        ))
 
     @command_handler('metar')
     async def metar(self, message: discord.Message, argument: str) -> None:

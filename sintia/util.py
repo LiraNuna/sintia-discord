@@ -6,9 +6,13 @@ from collections import Iterable
 from datetime import timedelta
 from functools import lru_cache
 from itertools import islice
+from typing import Awaitable
+from typing import Mapping
 from typing import TypeVar
 
 T = TypeVar('T')
+Tk = TypeVar('Tk')
+Tv = TypeVar('Tv')
 
 
 def memoize(user_function):
@@ -24,7 +28,7 @@ def memoize(user_function):
 
 def ordinal(position: int) -> str:
     return "%d%s" % (position, "tsnrhtdd"[(position // 10 % 10 != 1) * (position % 10 < 4) * position % 10::4])
-    
+
 
 def plural(count: int, thing: str) -> str:
     if count == 1:
@@ -59,3 +63,13 @@ def ichunk(iterable: Iterable[T], chunk_size: int) -> Iterable[list[T]]:
     i = iter(iterable)
     while chunk := list(islice(i, chunk_size)):
         yield chunk
+
+
+async def gather_mapping(mapping: Mapping[Tk, Awaitable[Tv]]) -> Mapping[Tk, Tv]:
+    """Resolves a mapping of {Tk, Awaitable[Tv]} to {Tk, Tv}"""
+
+    items = list(mapping.items())
+    keys = (key for key, value in items)
+    values = await asyncio.gather(*(value for key, value in items))
+
+    return dict(zip(keys, values))
