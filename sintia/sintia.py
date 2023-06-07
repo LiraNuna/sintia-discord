@@ -46,7 +46,7 @@ class CommandProcessor:
     def __call__(self, *commands: str):
         def decorator(func: Callback) -> Callback:
             for command in commands:
-                self.commands[self.prefix + command] = func
+                self.commands[self.prefix + command.lower()] = func
 
             return func
 
@@ -54,10 +54,11 @@ class CommandProcessor:
 
     def is_valid_command(self, message: discord.Message) -> bool:
         trigger, _, argument = message.clean_content.partition(' ')
-        return trigger in self.commands
+        return trigger.lower() in self.commands
 
     async def process_discord_message(self, instance: discord.Client, message: discord.Message) -> None:
         trigger, _, argument = message.clean_content.partition(' ')
+        trigger = trigger.lower()
         if trigger not in self.commands:
             return
 
