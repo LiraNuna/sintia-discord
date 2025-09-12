@@ -113,7 +113,8 @@ class Sintia(discord.Client):
         return rate_limits[user_id] + duration > datetime.now()
 
     async def http_get_request(self, url: str, *, params: Optional[dict[str, str]] = None) -> str:
-        async with aiohttp.ClientSession() as session:
+        headers = {'User-Agent': 'Sintia (https://www.liranuna.com/; sintia@liranuna.com) python/aiohttp/3.9'}
+        async with aiohttp.ClientSession(headers=headers) as session:
             async with session.get(url, params=params) as response:
                 return await response.text()
 
