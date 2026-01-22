@@ -4,20 +4,21 @@ import asyncio
 import json
 import random
 import re
-from collections import Awaitable
-from collections import Callable
-from collections import MutableMapping
 from collections import defaultdict
 from datetime import datetime
 from datetime import timedelta
 from json import JSONDecodeError
 from typing import Any
+from typing import Awaitable
+from typing import Callable
+from typing import MutableMapping
 from typing import Optional
 from typing import Union
 
 import aiohttp
 import discord
 import markovify
+from discord import Message
 
 from sintia.config import get_config_section
 from sintia.modules import quotes
@@ -74,7 +75,7 @@ class Sintia(discord.Client):
 
     chat_brain: markovify.Text
 
-    def __init__(self, *, loop=None, **options):
+    def __init__(self, **options):
         discord_config = get_config_section('discord')
 
         options.setdefault('max_messages', discord_config.getint('max_messages'))
@@ -82,7 +83,6 @@ class Sintia(discord.Client):
         intents = discord.Intents.default()
         intents.members = True
         super().__init__(
-            loop=loop,
             intents=intents,
             **options,
         )
@@ -90,10 +90,10 @@ class Sintia(discord.Client):
         with open('brain.json', 'rt') as f:
             self.chat_brain = markovify.Text.from_json(f.read())
 
-    def run(self):
+    def run(self, **kwargs):
         discord_config = get_config_section('discord')
 
-        super().run(discord_config['token'])
+        super().run(discord_config['token'], **kwargs)
 
     @memoize
     def get_rate_limits(self, action: str, *sections: Union[str, int]) -> dict[int, datetime]:
@@ -129,7 +129,7 @@ class Sintia(discord.Client):
         )
 
     @command_handler('q')
-    async def read_quote(self, message: discord.Message, argument: str) -> None:
+    async def read_quote(self, message: discord.Message, argument: str) -> Message | None:
         # When no argument is given, we display a random quote
         if not argument:
             quote, latest_quote = await asyncio.gather(
@@ -155,7 +155,7 @@ class Sintia(discord.Client):
         return await self.find_quote(message, argument)
 
     @command_handler('fq')
-    async def find_quote(self, message: discord.Message, argument: str) -> None:
+    async def find_quote(self, message: discord.Message, argument: str) -> Message | None:
         quote, search_results = await asyncio.gather(
             quotes.random_quote_by_search_term(argument),
             quotes.find_quotes_by_search_term(argument),
@@ -169,7 +169,7 @@ class Sintia(discord.Client):
         )
 
     @command_handler('lq')
-    async def last_quote(self, message: discord.Message, argument: str) -> None:
+    async def last_quote(self, message: discord.Message, argument: str) -> Message | None:
         quote = await quotes.get_latest_quote(containing=argument)
         if not quote:
             return await message.channel.send(f'No quotes found')
@@ -181,7 +181,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Latest quote {extra_message}is {self.format_quote(quote)}')
 
     @command_handler('bq')
-    async def best_quote(self, message: discord.Message, argument: str) -> None:
+    async def best_quote(self, message: discord.Message, argument: str) -> Message | None:
         # No param simply shows the best quote
         if not argument:
             quote = await quotes.get_best_quote()
@@ -207,7 +207,7 @@ class Sintia(discord.Client):
             await message.channel.send(self.format_quote(quote))
 
     @command_handler('iq')
-    async def quote_info(self, message: discord.Message, argument: str) -> None:
+    async def quote_info(self, message: discord.Message, argument: str) -> Message | None:
         if not argument.isdigit():
             return
 
@@ -231,7 +231,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'{quote_info}. It is ranked {ordinal(rank)}.')
 
     @command_handler('aq')
-    async def add_quote(self, message: discord.Message, argument: str) -> None:
+    async def add_quote(self, message: discord.Message, argument: str) -> Message | None:
         if not argument:
             return
 
@@ -243,7 +243,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Quote **#{quote_id}** has been added.')
 
     @command_handler('+q')
-    async def upvote_quote(self, message: discord.Message, argument: str) -> None:
+    async def upvote_quote(self, message: discord.Message, argument: str) -> Message | None:
         if not argument.isdigit():
             return
 
@@ -260,7 +260,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Popularity of quote **#{quote_id}** has increased.')
 
     @command_handler('-q')
-    async def downvote_quote(self, message: discord.Message, argument: str) -> None:
+    async def downvote_quote(self, message: discord.Message, argument: str) -> Message | None:
         if not argument.isdigit():
             return
 
@@ -277,7 +277,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Popularity of quote **#{quote_id}** has decreased.')
 
     @command_handler('g')
-    async def google_search(self, message: discord.Message, argument: str) -> None:
+    async def google_search(self, message: discord.Message, argument: str) -> Message | None:
         if not argument:
             return
 
@@ -301,7 +301,7 @@ class Sintia(discord.Client):
         )
 
     @command_handler('gi')
-    async def google_image_search(self, message: discord.Message, argument: str) -> None:
+    async def google_image_search(self, message: discord.Message, argument: str) -> Message | None:
         if not argument:
             return
 
@@ -322,11 +322,11 @@ class Sintia(discord.Client):
         return await message.channel.send(search_result["link"])
 
     @command_handler('gif')
-    async def google_gif_search(self, message: discord.Message, argument: str) -> None:
+    async def google_gif_search(self, message: discord.Message, argument: str) -> Message | None:
         return await self.google_image_search(message, argument + ' filetype:gif')
 
     @command_handler('yt')
-    async def youtube_search(self, message: discord.Message, argument: str) -> None:
+    async def youtube_search(self, message: discord.Message, argument: str) -> Message | None:
         if not argument:
             return
 
@@ -346,7 +346,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'https://www.youtube.com/watch?v={search_result["id"]["videoId"]}')
 
     @command_handler('w', 'wiki')
-    async def wikipedia_search(self, message: discord.Message, argument: str) -> None:
+    async def wikipedia_search(self, message: discord.Message, argument: str) -> Message | None:
         if not argument:
             return
 
@@ -384,7 +384,7 @@ class Sintia(discord.Client):
         return await message.channel.send(embed=embed)
 
     @command_handler('ud')
-    async def urbandictionary_search(self, message: discord.Message, argument: str) -> None:
+    async def urbandictionary_search(self, message: discord.Message, argument: str) -> Message | None:
         if not argument:
             return
 
@@ -405,7 +405,7 @@ class Sintia(discord.Client):
         )
 
     @command_handler('countdown')
-    async def countdown(self, message: discord.Message, argument: str) -> None:
+    async def countdown(self, message: discord.Message, argument: str) -> Message | None:
         if not argument.isdigit():
             return
 
@@ -422,11 +422,11 @@ class Sintia(discord.Client):
         return await message.channel.send('DONE!')
 
     @command_handler('hello')
-    async def greet(self, message: discord.Message, argument: str) -> None:
+    async def greet(self, message: discord.Message, argument: str) -> Message | None:
         return await message.channel.send(f'Hello {message.author.mention}')
 
     @command_handler('score')
-    async def show_user_vote_score(self, message: discord.Message, argument: str):
+    async def show_user_vote_score(self, message: discord.Message, argument: str) -> Message | None:
         target_user = message.author
         if argument and message.mentions:
             target_user, *rest = message.mentions
@@ -437,7 +437,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'{target_user.mention} has {plural(score, "point")}')
 
     @command_handler('emoji')
-    async def show_user_emoji_vote_score(self, message: discord.Message, argument: str):
+    async def show_user_emoji_vote_score(self, message: discord.Message, argument: str) -> Message | None:
         target_user = message.author
         if argument and message.mentions:
             target_user, *rest = message.mentions
@@ -453,7 +453,7 @@ class Sintia(discord.Client):
         )
 
     @command_handler('lastspoke')
-    async def show_user_last_spoke(self, message: discord.Message, argument: str):
+    async def show_user_last_spoke(self, message: discord.Message, argument: str) -> Message | None:
         target_user = None
         if argument and message.mentions:
             target_user, *rest = message.mentions
@@ -472,7 +472,7 @@ class Sintia(discord.Client):
             f"{target_user.mention} last spoke {relative_seconds} in {activity_channel.mention}",
         )
 
-    async def vote_handler(self, message: discord.Message) -> None:
+    async def vote_handler(self, message: discord.Message) -> Message | None:
         # Ignore bot votes
         if message.author.bot:
             return
@@ -500,7 +500,7 @@ class Sintia(discord.Client):
         return await message.add_reaction('✅')
 
     @command_handler('time')
-    async def global_time(self, message: discord.Message, argument: str) -> None:
+    async def global_time(self, message: discord.Message, argument: str) -> Message | None:
         if not argument:
             return
 
@@ -519,7 +519,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'```In {location} it is {current_time}```')
 
     @command_handler('stock', 'stocks', 'stonk', 'stonks')
-    async def stock(self, message: discord.Message, argument: str) -> None:
+    async def stock(self, message: discord.Message, argument: str) -> Message | None:
         if not argument:
             return
 
@@ -542,7 +542,7 @@ class Sintia(discord.Client):
         ))
 
     @command_handler('metar')
-    async def metar(self, message: discord.Message, argument: str) -> None:
+    async def metar(self, message: discord.Message, argument: str) -> Message | None:
         if not argument:
             return
 
@@ -561,7 +561,7 @@ class Sintia(discord.Client):
             return await message.channel.send(f'```{argument.upper()} does not publish METAR```')
 
     @command_handler('roll')
-    async def roll(self, message: discord.Message, argument: str) -> None:
+    async def roll(self, message: discord.Message, argument: str) -> Message | None:
         def limit(value: Union[int, str], min: int, max: int) -> int:
             value = int(value)
             if value > max:
@@ -587,7 +587,7 @@ class Sintia(discord.Client):
         return await message.channel.send(f'Rolled **{argument}**: {" + ".join(map(str, rolls))} = {sum(rolls)}')
 
     @command_handler('conv', 'convert')
-    async def convert(self, message: discord.Message, argument: str) -> None:
+    async def convert(self, message: discord.Message, argument: str) -> Message | None:
         fixer_config = get_config_section('search.fixer')
 
         aliases = {
@@ -720,17 +720,17 @@ class Sintia(discord.Client):
             )
 
     @command_handler('chat')
-    async def chat(self, message: discord.Message, argument: str) -> None:
+    async def chat(self, message: discord.Message, argument: str) -> Message | None:
         return await message.channel.send(self.chat_brain.make_sentence())
 
     @command_handler('savebrain')
-    async def save_brain(self, message: discord.Message, argument: str) -> None:
+    async def save_brain(self, message: discord.Message, argument: str) -> Message | None:
         with open('brain.json', 'wt') as f:
             f.write(self.chat_brain.to_json())
 
         return await message.add_reaction('✔')
 
-    async def chat_message_handler(self, message: discord.Message) -> None:
+    async def chat_message_handler(self, message: discord.Message) -> Message | None:
         if message.author == self.user:
             return
         if self.command_handler.is_valid_command(message):
@@ -745,7 +745,7 @@ class Sintia(discord.Client):
     async def on_ready(self) -> None:
         print(f'Logged in as {self.user.name} ({self.user.id})')
 
-    async def on_message(self, message: discord.Message) -> None:
+    async def on_message(self, message: discord.Message) -> Message | None:
         await asyncio.gather(
             self.vote_handler(message),
             user_stats.record_message(message),
@@ -753,12 +753,12 @@ class Sintia(discord.Client):
             self.command_handler.process_discord_message(self, message),
         )
 
-    async def on_message_delete(self, message: discord.Message) -> None:
+    async def on_message_delete(self, message: discord.Message) -> Message | None:
         reply = self.command_handler.history.get(message)
         if reply:
             await reply.delete()
 
-    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User) -> None:
+    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User) -> Message | None:
         if reaction.message.author == self.user:
             if reaction.emoji == '🚫' and reaction.count >= 2:
                 return await reaction.message.delete()
@@ -779,7 +779,7 @@ class Sintia(discord.Client):
         if user not in {reaction.message.author, self.user}:
             await user_votes.add_emoji_vote(reaction.message.author, reaction.message.guild, reaction.emoji, +1)
 
-    async def on_reaction_remove(self, reaction: discord.Reaction, user: discord.User) -> None:
+    async def on_reaction_remove(self, reaction: discord.Reaction, user: discord.User) -> Message | None:
         if reaction.message.author == self.user:
             quote_id_matches = re.search(r'[Qq]uote \*\*#(?P<quote_id>\d+)\*\*', reaction.message.content)
             if quote_id_matches:
