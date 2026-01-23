@@ -538,10 +538,15 @@ class Sintia(discord.Client):
         if not results:
             return await message.channel.send(f'No results found for `{argument}`')
 
-        return await message.channel.send('\n'.join(
-            f"**{ticker}**: {response['c']:.2f} ({(((response['c'] / response['pc']) - 1) * 100):+.2f}%)"
-            for ticker, response in results.items()
-        ))
+        formatted = ''
+        for ticker, response in results.items():
+            stock_amount = response['c']
+            stock_change = (((response['c'] / response['pc']) - 1) * 100)
+            change_color = '32' if stock_change >= 0 else '31'
+
+            formatted += f"\u001b[1m{ticker}\u001b[0;0m: {stock_amount:.2f} (\u001b[{change_color}m{stock_change:+.2f}%\u001b[0;0m)\n"
+
+        return await message.channel.send(f"```ansi\n{formatted}```")
 
     @command_handler('metar')
     async def metar(self, message: discord.Message, argument: str) -> Message | None:
