@@ -82,6 +82,8 @@ class Sintia(discord.Client):
 
         intents = discord.Intents.default()
         intents.members = True
+        intents.message_content = True
+
         super().__init__(
             intents=intents,
             **options,
