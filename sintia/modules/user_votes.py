@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Mapping
+from typing import Mapping
 from typing import Union
 
 import discord

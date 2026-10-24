@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections import Iterable
 from datetime import timedelta
 from functools import lru_cache
 from itertools import islice
 from typing import Awaitable
+from typing import Iterable
 from typing import Mapping
 from typing import TypeVar
 
